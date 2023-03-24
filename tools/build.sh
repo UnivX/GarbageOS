@@ -1,3 +1,2 @@
-nasm boot.asm -f bin -o boot.bin
-./mbr_maker.out test.iso 20 boot.bin
-
+g++ mbr_maker.cpp -o mbr_maker.out
+g++ fat32_maker.cpp -std=c++17 -o fat32_maker.out

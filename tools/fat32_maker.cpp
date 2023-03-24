@@ -250,6 +250,19 @@ char* makeFat32VBR(char* vbr_in, std::string volume_name, uint32_t size_of_fat_i
 	return vbr_in;
 }
 
+void writeBootCode(char* vbr, std::string boot_code_path){
+	char code[VBR_SIZE_BOOT_CODE_32];
+	std::ifstream boot_code_file(boot_code_path, std::ios::binary | std::ios::in);
+	//get size of the file
+	boot_code_file.seekg( 0, std::ios::end );
+	uint32_t size = boot_code_file.tellg();
+	assert(size == VBR_SIZE_BOOT_CODE_32);
+
+	boot_code_file.seekg(0);
+	boot_code_file.read(code, VBR_SIZE_BOOT_CODE_32);
+	memcpy(vbr+VBR_OFFSET_BOOT_CODE_32, code, VBR_SIZE_BOOT_CODE_32);
+}
+
 void makeFSInfoSector(char* fs_info_in, const char* vbr){
 	uint32_t sector_size = getSectorSizeInBytes(vbr);
 	memset(fs_info_in, 0, sector_size);
@@ -414,6 +427,7 @@ int main(int argc, char** argv){
 
 	int fat_size = 128, volume_size = -1, cluster_size = 1, sector_size = 512, file_offset = 0;
 	std::string file_path="";
+	std::string boot_code_path="";
 
 	for(auto arg : args){
 		readIntParamIfPresent(&fat_size, arg, "fat_size=");
@@ -422,6 +436,7 @@ int main(int argc, char** argv){
 		readIntParamIfPresent(&sector_size, arg, "sector_size=");
 		readIntParamIfPresent(&file_offset, arg, "file_offset=");
 		readStringParamIfPresent(&file_path, arg, "file=");
+		readStringParamIfPresent(&file_path, arg, "boot_code=");
 	}
 
 	if(file_path.size() == 0){
@@ -440,6 +455,9 @@ int main(int argc, char** argv){
 	char* fs_info = (char*)malloc(sector_size);
 
 	makeFat32VBR(vbr, "test", fat_size, volume_size, cluster_size, sector_size);
+	if(boot_code_path.size() != 0){
+		writeBootCode(vbr, boot_code_path);
+	}
 	image.writeSector(0, vbr);
 	makeFSInfoSector(fs_info, vbr);
 	image.writeSector(getFSInfoSectorOffset(vbr), fs_info);
