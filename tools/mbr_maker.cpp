@@ -38,11 +38,12 @@ void initMBR(MBR* in){
 
 CHS lbaToChs(uint32_t lba){
 	CHS out;
-	const uint32_t heads_per_ciliders = 16;
-	const uint32_t sectors_per_track = 63;
-	out.C = lba / (heads_per_ciliders*sectors_per_track);
-	out.H = (lba / sectors_per_track) % heads_per_ciliders;
-	out.S = (lba % sectors_per_track) +1;
+	const uint32_t HPC = 16;
+	const uint32_t SPT = 63;
+	out.C = lba / (HPC * SPT);
+	int TEMP = lba % (HPC * SPT);
+	out.H = TEMP / SPT;
+	out.S = TEMP % SPT + 1;
 	return out;
 }
 

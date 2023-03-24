@@ -32,6 +32,11 @@ FAT32 AREAS:
 
 */
 
+#define ATTR_DIRECTORY 0x10
+#define FAT_ENTRY_END_OF_CHAIN 0x0FFFFFFF
+#define DIRECTORY_ENTRY_FREE 0xE5
+#define DIRECTORY_ENTRY_FREE_AND_AFTER_FREE 0x00
+
 //define naming convention: <FAT32 AREA>_<OFFSET or SIZE>_<FIELD NAME>
 #define VBR_OFFSET_JMP_BOOT 0
 #define VBR_SIZE_JMP_BOOT 3
@@ -258,7 +263,7 @@ void makeFSInfoSector(char* fs_info_in, const char* vbr){
 	write_at<uint32_t>(fs_info_in, FSINFO_OFFSET_STRUCT_SIG, 0x61417272, FSINFO_SIZE_STRUCT_SIG);
 
 	write_at<uint32_t>(fs_info_in, FSINFO_OFFSET_FREE_COUNT, getClusterCount(vbr), FSINFO_SIZE_FREE_COUNT);
-	write_at<uint32_t>(fs_info_in, FSINFO_OFFSET_NXT_FREE, root_cluster, FSINFO_SIZE_NXT_FREE);
+	write_at<uint32_t>(fs_info_in, FSINFO_OFFSET_NXT_FREE, root_cluster+1, FSINFO_SIZE_NXT_FREE);
 
 	//magic number
 	write_at<uint32_t>(fs_info_in, FSINFO_OFFSET_TRAIL_SIG, 0xAA550000, FSINFO_SIZE_TRAIL_SIG);
@@ -296,7 +301,7 @@ uint32_t readFatEntry(FileImage& image, uint32_t entry){
 	image.readSector(0, sector_buffer.get());
 	uint32_t sector = getFatAreaStart(sector_buffer.get()) + (entry*4 / image.getSectorSize());
 	image.readSector(sector, sector_buffer.get());
-	return read_at<uint32_t>(sector_buffer.get(), (entry*4)/ image.getSectorSize());
+	return read_at<uint32_t>(sector_buffer.get(), (entry*4)% image.getSectorSize());
 }
 
 void writeFatEntry(FileImage& image, uint32_t entry, uint32_t value){
@@ -305,13 +310,17 @@ void writeFatEntry(FileImage& image, uint32_t entry, uint32_t value){
 	uint32_t sector = getFatAreaStart(sector_buffer.get()) + (entry*4 / image.getSectorSize());
 
 	image.readSector(sector, sector_buffer.get());
-	write_at<uint32_t>(sector_buffer.get(), value, (entry*4)/ image.getSectorSize());
+	write_at<uint32_t>(sector_buffer.get(), (entry*4)% image.getSectorSize(), value);
 	image.writeSector(sector, sector_buffer.get());
 }
 
 uint32_t getFirstSectorOfCluster(const char* vbr, uint32_t cluster){
 	uint32_t sector = getDataAreaFirstSector(vbr) + (cluster-2)*getSectorSizeInBytes(vbr);
 	return sector;
+}
+
+uint32_t getClusterSizeInSectors(const char* vbr){
+	return read_at<uint8_t>(vbr, VBR_OFFSET_SEC_PER_CLUS, VBR_SIZE_SEC_PER_CLUS);
 }
 
 void initializeFileAllocationTable(FileImage& image){
@@ -322,9 +331,14 @@ void initializeFileAllocationTable(FileImage& image){
 
 	//zero out the fat
 	memset(sector_buffer.get(), 0, image.getSectorSize());
-	for(int i = start; i < size; i++){
-		image.writeSector(i, sector_buffer.get());
+	for(int i = 0; i < size; i++){
+		image.writeSector(start+i, sector_buffer.get());
 	}
+
+	//set FAT[0] and FAT[1]
+	image.readSector(0, sector_buffer.get());
+	writeFatEntry(image, 0, 0xFFFFFF00 | read_at<uint8_t>(sector_buffer.get(), VBR_OFFSET_MEDIA, VBR_SIZE_MEDIA));
+	writeFatEntry(image, 1, 0xFFFFFFFF);
 }
 
 //TODO: review
@@ -339,6 +353,26 @@ void updateFat32Backup(FileImage& image){
 		image.writeSector(i+backup_sector_start, sector_buffer.get());
 	}
 	return;
+}
+
+void makeRootDirectory(FileImage& image){
+	auto sec_buffer = std::make_unique<char[]>(image.getSectorSize());
+	auto vbr_buffer = std::make_unique<char[]>(image.getSectorSize());
+	image.readSector(0, vbr_buffer.get());
+
+	//set the fat entry as the end of chain
+	uint32_t first_sector_of_cluster = getFirstSectorOfCluster(vbr_buffer.get(), 2);
+	uint32_t cluster_size = getClusterSizeInSectors(vbr_buffer.get());
+
+	//set every directory entry in the cluster as free
+	for(int s_off = 0; s_off < cluster_size; s_off++){
+		image.readSector(first_sector_of_cluster + s_off, sec_buffer.get());
+		for(int b_off = 0; b_off < image.getSectorSize(); b_off+=32){
+			write_at<uint8_t>(sec_buffer.get(), b_off, DIRECTORY_ENTRY_FREE_AND_AFTER_FREE);
+		}
+		image.writeSector(first_sector_of_cluster + s_off, sec_buffer.get());
+	}
+	writeFatEntry(image, read_at<uint32_t>(vbr_buffer.get(), VBR_OFFSET_ROOT_CLUS, VBR_SIZE_ROOT_CLUS), FAT_ENTRY_END_OF_CHAIN);
 }
 
 std::pair<int, bool> tryParseIntOption(std::string opt){
@@ -409,8 +443,9 @@ int main(int argc, char** argv){
 	image.writeSector(0, vbr);
 	makeFSInfoSector(fs_info, vbr);
 	image.writeSector(getFSInfoSectorOffset(vbr), fs_info);
-	initializeFileAllocationTable(image);
 	updateFat32Backup(image);
+	initializeFileAllocationTable(image);
+	makeRootDirectory(image);
 
 	free(vbr);
 	free(fs_info);
