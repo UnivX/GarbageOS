@@ -261,6 +261,7 @@ void writeBootCode(char* vbr, std::string boot_code_path){
 	boot_code_file.seekg(0);
 	boot_code_file.read(code, VBR_SIZE_BOOT_CODE_32);
 	memcpy(vbr+VBR_OFFSET_BOOT_CODE_32, code, VBR_SIZE_BOOT_CODE_32);
+	std::cerr << "[INFO] copied second stage code\n";
 }
 
 void makeFSInfoSector(char* fs_info_in, const char* vbr){
@@ -436,7 +437,7 @@ int main(int argc, char** argv){
 		readIntParamIfPresent(&sector_size, arg, "sector_size=");
 		readIntParamIfPresent(&file_offset, arg, "file_offset=");
 		readStringParamIfPresent(&file_path, arg, "file=");
-		readStringParamIfPresent(&file_path, arg, "boot_code=");
+		readStringParamIfPresent(&boot_code_path, arg, "boot_code=");
 	}
 
 	if(file_path.size() == 0){
@@ -456,6 +457,7 @@ int main(int argc, char** argv){
 
 	makeFat32VBR(vbr, "test", fat_size, volume_size, cluster_size, sector_size);
 	if(boot_code_path.size() != 0){
+		std::cerr << "[INFO] going to copy second stage code\n";
 		writeBootCode(vbr, boot_code_path);
 	}
 	image.writeSector(0, vbr);

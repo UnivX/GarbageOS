@@ -1,22 +1,29 @@
 ;boot.asm
 %define STACK_SIZE 2048
-%define STACK_BOTTOM_OFFSET 0x0600
+%define STACK_BOTTOM_OFFSET 0x0800
 %define FIRST_PARTITION_ENTRY_OFFSET 446
 %define MAGIC_NUMBER_OFFSET 510
-%define BASE_ADDRESS 0x7c00
+%define VBR_ADDRESS 0x7c00
+%define RELOCATION_ADDRESS 0x0600
 ;the 
 
 
-org 0x7c00
+org RELOCATION_ADDRESS
 
 bits 16
 
 first_stage:
-    jmp 0000:force_jmp;force the address to be 0000:7c00
-force_jmp:
 	;no interrupts and clear direction flag
 	cli
+	;copy the mbr to the relocation address
     cld
+	mov si, 0x7c00
+	mov di, RELOCATION_ADDRESS
+	mov cx, 512/2
+	rep movsw
+
+	jmp 0x0000:relocated_code
+relocated_code:
 	;set up segmentes and stack
     xor ax, ax
     mov ss, ax
@@ -33,7 +40,7 @@ force_jmp:
     mov si, msg
     call printc
 
-	mov si, FIRST_PARTITION_ENTRY_OFFSET + BASE_ADDRESS
+	mov si, FIRST_PARTITION_ENTRY_OFFSET + RELOCATION_ADDRESS
 	
 	;iterate all partitions
 find_entry:
@@ -67,8 +74,10 @@ load_entry:
 	mov si, vbr_ok_msg
 	call printc
 
-	jmp hang
+	mov si, new_line
+	call printc
 
+	jmp 0000:VBR_ADDRESS
 
 error:;jump to it when there is an error
     call print_ax
@@ -82,14 +91,15 @@ hang:;stop the cpu
 
 data:
     msg db "Loading the first bootable partition: ", 0
-	vbr_ok_msg db "Done", 0
-    err_msg db "BAD - ", 0
+	vbr_ok_msg db "Done ", 0
+    err_msg db "BAD ", 0
+	new_line db 13, 10, 0
     drive_number db 0
 DAP:
 	dap_size db 16
 	dap_reserved db 0
 	dap_to_read dw 1
-	dap_transfer_buffer_offset dw BASE_ADDRESS+512
+	dap_transfer_buffer_offset dw VBR_ADDRESS
 	dap_transfer_buffer_segment dw 0
 	dap_lower_lba dd 0
 	dap_upper_lba dd 0
