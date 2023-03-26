@@ -1,6 +1,6 @@
 %define STACK_SIZE 2048
 %define STACK_BOTTOM_OFFSET 0x0600
-
+%define FREE_LOW_MEM_ADDR STACK_SIZE+STACK_BOTTOM_OFFSET
 %define TSS_SIZE_PROTECTED_MODE 0x6c
 %define TSS_ADDRESS 0x0500
 %define TSS_FLAGS 0x0
@@ -144,21 +144,11 @@ a20_enabled:
 	mov si, a20_good
 	call printc
 
-	;setup GDT
-
-	;generate TSS
-	mov word [ds:GDT_TSS], TSS_SIZE_PROTECTED_MODE
-	mov word [ds:GDT_TSS+16], TSS_ADDRESS
-	mov byte [ds:GDT_TSS+40], TSS_ACCESS_BYTE
-	or byte [ds:GDT_TSS+52], TSS_FLAGS
-
 	;load gdt
-	mov ax, GDT
-	mov [ds:gdtr+2], ax
-	mov ax, GDT-GDT_END
-	mov [ds:gdtr], ax
-	lgdt [ds:gdtr]
+	lgdt [unreal_gdtr]
 
+	mov si, gdt_loaded
+	call printc
 
 	;set PE(Protection Enable)
 	mov eax, cr0
@@ -167,6 +157,31 @@ a20_enabled:
 	jmp 08h:protected_mode
 
 protected_mode:
+	;now we will load the segment descriptor for the kernel data
+	;the CPU will load in the segment cache the options, after we return to real mode
+	;the cache will remain unaffected and we will be able to write
+	;over the 1MB barrier(the limit are that of the flat cached segment descriptor)
+
+	;select kernel mode data segment descriptor
+	mov bx, 0x10
+	mov ds, bx
+
+	;back to real mode(unreal_mode)
+	;eax still contains a copy of cr0
+
+	and al, 0xFE ;clear PE(Protection Enable)
+	mov cr0, eax
+	jmp 0x0:unreal_mode
+
+unreal_mode:
+	xor ax, ax
+	mov ds, ax
+
+	mov si, unreal_mode_good
+	call printc
+
+
+
 	jmp hang
 
 no_64bit_error:
@@ -183,17 +198,19 @@ a20_error:
 third_stage_data:
 	a20_err db "a20 err", 13, 10, 0
 	a20_good db "a20 good", 13, 10, 0
+	unreal_mode_good db "unreal mode good", 13, 10, 0
+	gdt_loaded db "gdt loaded", 13, 10, 0
 
-GDT:
+UNREAL_GDT:
 	dq 0x0000000000000000;NULL
-	dq 0x00CF9A000000FFFF;Kernel mode code segment
-	dq 0x00CF92000000FFFF;Kernel mode data segment
-	dq 0x00CFFA000000FFFF;User mode code segment
-	dq 0x00CFF2000000FFFF;User mode data segment
-GDT_TSS:
-	dq 0x0000000000000000;TSS setup done in code
-GDT_END:
+	db 0xff, 0xff, 0, 0, 0, 10011010b, 00000000b, 0;code segment, 16bit mode
+	db 0xff, 0xff, 0, 0, 0, 10010010b, 11001111b, 0;data segment, 32bit mode
+UNREAL_GDT_END:
 
-gdtr:
-	dw 0;limit storage
-	dd 0;base storage
+unreal_gdtr:
+	dw UNREAL_GDT_END-UNREAL_GDT-1;limit storage
+	dd UNREAL_GDT;base storage
+
+third_stage_libs:
+
+	%include "fat32.asm"
