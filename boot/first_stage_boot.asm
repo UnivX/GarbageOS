@@ -77,6 +77,7 @@ load_entry:
 	mov si, new_line
 	call printc
 
+	mov dl, [ds:drive_number]
 	jmp 0000:VBR_ADDRESS
 
 error:;jump to it when there is an error

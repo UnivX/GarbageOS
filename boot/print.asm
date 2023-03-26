@@ -3,10 +3,6 @@ print_ax:;procedure to print the ax hex value
     push ax
 
     mov ah, 0x0e
-    mov al, '|'
-    int 0x10
-
-    mov ah, 0x0e
     mov al, '0'
     int 0x10
 
@@ -21,9 +17,6 @@ print_ax:;procedure to print the ax hex value
     pop ax
     call print_al
 
-    mov ah, 0x0e
-    mov al, '|'
-    int 0x10
     popa
     ret
 print_al:;procedure to print the al hex value

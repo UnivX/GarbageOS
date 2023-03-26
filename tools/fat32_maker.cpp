@@ -32,6 +32,7 @@ FAT32 AREAS:
 
 */
 
+
 #define ATTR_DIRECTORY 0x10
 #define FAT_ENTRY_END_OF_CHAIN 0x0FFFFFFF
 #define DIRECTORY_ENTRY_FREE 0xE5
@@ -250,20 +251,6 @@ char* makeFat32VBR(char* vbr_in, std::string volume_name, uint32_t size_of_fat_i
 	return vbr_in;
 }
 
-void writeBootCode(char* vbr, std::string boot_code_path){
-	char code[VBR_SIZE_BOOT_CODE_32];
-	std::ifstream boot_code_file(boot_code_path, std::ios::binary | std::ios::in);
-	//get size of the file
-	boot_code_file.seekg( 0, std::ios::end );
-	uint32_t size = boot_code_file.tellg();
-	assert(size == VBR_SIZE_BOOT_CODE_32);
-
-	boot_code_file.seekg(0);
-	boot_code_file.read(code, VBR_SIZE_BOOT_CODE_32);
-	memcpy(vbr+VBR_OFFSET_BOOT_CODE_32, code, VBR_SIZE_BOOT_CODE_32);
-	std::cerr << "[INFO] copied second stage code\n";
-}
-
 void makeFSInfoSector(char* fs_info_in, const char* vbr){
 	uint32_t sector_size = getSectorSizeInBytes(vbr);
 	memset(fs_info_in, 0, sector_size);
@@ -309,6 +296,47 @@ private:
 	int file_offset;
 	std::fstream file;
 };
+
+void writeBootCode(FileImage& image, std::string boot_code_path){
+	auto sector_buffer = std::make_unique<char[]>(image.getSectorSize());
+	auto vbr_buffer = std::make_unique<char[]>(image.getSectorSize());
+	
+	//load the code in memory
+	std::ifstream boot_code_file(boot_code_path, std::ios::binary | std::ios::in);
+	boot_code_file.seekg( 0, std::ios::end );
+	uint32_t code_size = boot_code_file.tellg();
+	auto code_buffer = std::make_unique<char[]>(code_size);
+	boot_code_file.seekg(0);
+	boot_code_file.read(code_buffer.get(), code_size);
+
+	//copy the first part of the boot code
+	image.readSector(0, vbr_buffer.get());
+	memcpy(vbr_buffer.get()+VBR_OFFSET_BOOT_CODE_32, code_buffer.get(), VBR_SIZE_BOOT_CODE_32);
+	image.writeSector(0, vbr_buffer.get());
+
+	//copy the remaining data
+	int code_offset = VBR_SIZE_BOOT_CODE_32;
+	int sector_to_write = read_at<uint16_t>(vbr_buffer.get(), VBR_OFFSET_BK_BOOT_SEC, VBR_SIZE_BK_BOOT_SEC)+3;
+
+	while(code_offset < code_size){
+		assert(sector_to_write < getFatAreaStart(vbr_buffer.get()));//if this assert fails the boot code is too big
+		image.readSector(sector_to_write, sector_buffer.get());
+
+		int size_of_data_to_write = code_size-code_offset;
+		if(size_of_data_to_write > image.getSectorSize())
+			size_of_data_to_write = image.getSectorSize();
+
+		std::cerr << "[INFO] writing boot code(offset: " << code_offset << ", size: " << size_of_data_to_write << ") into sector " << sector_to_write << "\n";
+
+		memcpy(sector_buffer.get(), code_buffer.get() + code_offset, size_of_data_to_write);
+
+		image.writeSector(sector_to_write, sector_buffer.get());
+
+		code_offset += size_of_data_to_write;
+		sector_to_write++;
+	}
+	std::cerr << "[INFO] copied second stage code\n";
+}
 
 uint32_t readFatEntry(FileImage& image, uint32_t entry){
 	auto sector_buffer = std::make_unique<char[]>(image.getSectorSize());
@@ -458,7 +486,6 @@ int main(int argc, char** argv){
 	makeFat32VBR(vbr, "test", fat_size, volume_size, cluster_size, sector_size);
 	if(boot_code_path.size() != 0){
 		std::cerr << "[INFO] going to copy second stage code\n";
-		writeBootCode(vbr, boot_code_path);
 	}
 	image.writeSector(0, vbr);
 	makeFSInfoSector(fs_info, vbr);
@@ -466,6 +493,7 @@ int main(int argc, char** argv){
 	updateFat32Backup(image);
 	initializeFileAllocationTable(image);
 	makeRootDirectory(image);
+	writeBootCode(image, boot_code_path);
 
 	free(vbr);
 	free(fs_info);
