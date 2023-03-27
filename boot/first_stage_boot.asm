@@ -77,6 +77,7 @@ load_entry:
 	mov si, new_line
 	call printc
 
+	mov eax, [ds:dap_lower_lba]
 	mov dl, [ds:drive_number]
 	jmp 0000:VBR_ADDRESS
 
@@ -96,6 +97,7 @@ data:
     err_msg db "BAD ", 0
 	new_line db 13, 10, 0
     drive_number db 0
+	align 2
 DAP:
 	dap_size db 16
 	dap_reserved db 0

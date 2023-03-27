@@ -1,6 +1,7 @@
-print_ax:;procedure to print the ax hex value
+print_eax:
     pusha
-    push ax
+	push eax
+	push eax
 
     mov ah, 0x0e
     mov al, '0'
@@ -9,6 +10,21 @@ print_ax:;procedure to print the ax hex value
     mov ah, 0x0e
     mov al, 'x'
     int 0x10
+
+    pop eax
+    push eax
+    shr eax, 16
+    call print_ax
+    pop eax
+    call print_ax
+
+	pop eax
+	popa
+	ret
+
+print_ax:;procedure to print the ax hex value
+    pusha
+    push ax
 
     pop ax
     push ax

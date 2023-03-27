@@ -8,12 +8,15 @@
 %define BK_BOOT_SEC_ADDRESS 0x7c00 + 50
 
 org 0x7c00 + 90
+bits 16
 
 start:
 	jmp 0x0000:second_stage
 second_stage:
 	cli
 
+	;get loaded partion offset
+	mov [ds:partition_offset], eax
     ;get drive number
     mov [ds:drive_number], dl
 
@@ -30,7 +33,7 @@ second_stage:
 	;alive print
     mov si, msg
     call printc
-	
+
 	;check if the cpu is 64 bit
 	mov eax, 0x80000001
 	cpuid
@@ -45,15 +48,18 @@ second_stage:
     call printc
 
 	mov ax, [ds:BK_BOOT_SEC_ADDRESS]
-	add ax, 4
+	add ax, 3;size of backup
+	add ax, [ds:partition_offset]
 	call print_ax
 
     mov si, newline
     call printc
 
+	xor eax, eax
 	mov ax, [ds:BK_BOOT_SEC_ADDRESS]
-	add al, 4
-	mov [ds:dap_lower_lba], ax
+	add al, 3;size of backup 
+	add eax, [ds:partition_offset]
+	mov [ds:dap_lower_lba], eax
 	;lower_lba+2 = 0
 
 	;call the BIOS int 13h extension
@@ -89,6 +95,8 @@ data:
 	loading_from_msg db "loading from: ", 0
 	newline db 13, 10, 0
     drive_number db 0
+	partition_offset dd 0
+	align 2
 DAP:
 	dap_size db 16
 	dap_reserved db 0
@@ -157,6 +165,7 @@ a20_enabled:
 	jmp 08h:protected_mode
 
 protected_mode:
+bits 32
 	;now we will load the segment descriptor for the kernel data
 	;the CPU will load in the segment cache the options, after we return to real mode
 	;the cache will remain unaffected and we will be able to write
@@ -174,12 +183,25 @@ protected_mode:
 	jmp 0x0:unreal_mode
 
 unreal_mode:
+bits 16
 	xor ax, ax
 	mov ds, ax
 
 	mov si, unreal_mode_good
 	call printc
 
+
+	mov dl, [ds:drive_number]
+	xor eax, eax
+	mov ax, FREE_LOW_MEM_ADDR
+	call init_fat32_driver
+
+	mov si, fat32_init_msg
+	call printc
+
+	mov eax, 2
+	call get_fat_entry
+	call print_eax
 
 
 	jmp hang
@@ -200,6 +222,7 @@ third_stage_data:
 	a20_good db "a20 good", 13, 10, 0
 	unreal_mode_good db "unreal mode good", 13, 10, 0
 	gdt_loaded db "gdt loaded", 13, 10, 0
+	fat32_init_msg db "fat32 driver init good", 13, 10, 0
 
 UNREAL_GDT:
 	dq 0x0000000000000000;NULL
