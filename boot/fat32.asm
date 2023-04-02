@@ -69,6 +69,64 @@ init_fat32_driver:
 	popa
 	ret
 
+;in -> eax start_cluster
+;in -> edi memory position(unreal mode)
+load_file_in_memory:
+	pusha
+
+.lfim_parse_cluster:
+
+	mov eax, [ds:lfim_clus]
+	call fat32_get_first_sector_of_cluster
+	;edx:eax cluster
+
+	mov cl, [ds:fat32_sectors_per_cluster]
+.lfim_parse_sector:
+
+	;load the sector
+	call print_eax
+	push edx
+	push eax
+	push edi
+	mov di, [ds:fat32_buffer_offset]
+	call read_sector
+	pop edi
+	pop eax
+	pop edx
+
+	;copy
+	push ebx
+	push eax
+
+	xor esi, esi
+	mov si, [ds:fat32_buffer_offset]
+	mov ebx, 0
+.lfim_copy:
+	mov eax, [ds:esi+ebx]
+	mov [ds:edi+ebx], eax
+	add ebx, 4
+	cmp ebx, [ds:fat32_sector_size]
+	jb .lfim_copy
+
+	pop eax
+	pop ebx
+
+
+	;increment the LBA sector
+	inc eax
+	jnc .lfim_no_carry
+	inc edx
+.lfim_no_carry:
+	loop .lfim_parse_sector
+
+	mov eax, [ds:lfim_clus]
+	call get_fat_entry
+	mov [ds:lfim_clus], eax
+	cmp eax, FAT32_END_OF_CHAIN
+	jb .lfim_parse_cluster
+
+	popa
+	ret
 
 ;in -> esi ptr to string
 ;out -> eax cluster of file (0 = error)
@@ -157,6 +215,8 @@ search_file_in_root:
 	;low 2 bytes
 	mov ax, [ds:si+26]
 
+	mov edx, [ds:si+28];size of file
+
 	mov si, fat32_file_found_msg
 	call printc
 
@@ -195,9 +255,11 @@ search_file_in_root:
 	call printc
 	xor eax, eax
 .exit:
-	popa
 	mov [ds:fat32_temp], eax
+	mov [ds:fat32_temp2], edx
+	popa
 	mov eax, [ds:fat32_temp]
+	mov edx, [ds:fat32_temp2]
 	ret
 
 
@@ -331,6 +393,7 @@ fat32_data:
 	fat32_file_found_msg db "file found", 13, 10, 0
 	fat32_file_not_found_msg db "file not found", 13, 10, 0
 	fat32_temp dd 0
+	fat32_temp2 dd 0
 	fat32_cluster_msg db "reading cluster: ", 0
 	fat32_sector_msg db "reading sector: ", 0
 	fat32_column_msg db ":", 0
@@ -351,6 +414,8 @@ fat32_other_data:
 	sfir_sect_high dd 8
 	sfir_sector_counter dd 12 
 	sfir_string_ptr dd 16
+	lfim_clus dd 0
+	lfim_sector dd 0
 
 	fat32_file_print_msg db "Fat Dir Entry: "
 	fat32_file_name_buffer times 11 db '?'

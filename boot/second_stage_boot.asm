@@ -90,6 +90,8 @@ error:;jump to it when there is an error
     ;jmp hang
 
 hang:;stop the cpu 
+	mov si, hang_msg
+	call printc
     cli
     hlt
 
@@ -99,6 +101,7 @@ data:
     msg db "stg 2 good", 13, 10, 0
     going_third_msg db "jmp to third", 13, 10, 0
 	loading_from_msg db "loading from: ", 0
+	hang_msg db "hanging...", 13, 10, 0
 	newline db 13, 10, 0
     drive_number db 0
 	partition_offset dd 0
@@ -207,7 +210,13 @@ bits 16
 
 	mov esi, test_file_name
 	call search_file_in_root
-	call print_eax
+	;eax-> file_start_cluster
+	;edx-> file_size
+	push edx
+	mov edi, 0x10000000
+	call load_file_in_memory
+	pop edx
+
 
 	jmp hang
 
