@@ -11,6 +11,16 @@ then
 	cd ..
 fi
 
+if [ ! -f "build/iso" ]
+then
+	mkdir build
+	mkdir build/iso
+fi
+
 SIZE=71520
 ./tools/mbr_maker.out build/bootable.iso "$SIZE" boot/first_stage_boot.bin 
 ./tools/fat32_maker.out volume_size="$SIZE" file=build/bootable.iso file_offset=1 boot_code=boot/second_stage_boot.bin
+
+sudo mount -t vfat -o loop,offset=512 build/bootable.iso build/iso
+echo 'this is a test file' >> build/iso/t.txt
+sudo umount build/iso

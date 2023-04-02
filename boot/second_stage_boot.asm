@@ -11,7 +11,7 @@ org 0x7c00 + 90
 bits 16
 
 start:
-	jmp 0x0000:second_stage
+	jmp 0x0000:second_stage 
 second_stage:
 	cli
 
@@ -76,6 +76,12 @@ second_stage:
 
 	;now that the third stage is loaded jmp
 	jmp 0x0000:third_stage_entry
+
+
+no_64bit_error:
+	mov si, no_64bit_err
+	call printc
+	jmp hang
 
 error:;jump to it when there is an error
     call print_ax
@@ -199,17 +205,12 @@ bits 16
 	mov si, fat32_init_msg
 	call printc
 
-	mov eax, 2
-	call get_fat_entry
+	mov esi, test_file_name
+	call search_file_in_root
 	call print_eax
 
-
 	jmp hang
 
-no_64bit_error:
-	mov si, no_64bit_err
-	call printc
-	jmp hang
 
 a20_error:
 	mov si, a20_err
@@ -223,6 +224,7 @@ third_stage_data:
 	unreal_mode_good db "unreal mode good", 13, 10, 0
 	gdt_loaded db "gdt loaded", 13, 10, 0
 	fat32_init_msg db "fat32 driver init good", 13, 10, 0
+	test_file_name db "T       TXT", 13, 10, 0
 
 UNREAL_GDT:
 	dq 0x0000000000000000;NULL

@@ -1,9 +1,11 @@
+%define FAT32_END_OF_CHAIN 0x0FFFFFF8
+%define FAT32_DIR_ATTR_OFFSET 11
+%define ATTR_LONG_FILE_NAME 0x0F
 ;input eax -> low lba sector
 ;input edx -> high lba sector
 ;input di -> destination offset
 read_sector:
 	pusha
-
 	mov bx, di
 	mov [ds:fat32dap_transfer_buffer_offset], bx
 
@@ -58,12 +60,144 @@ init_fat32_driver:
 
 	;calc data area start
 	mov edx, [ds:fat32_fat_size]
-	mov eax, [ds:fat32_number_of_fats]
+	xor eax, eax
+	mov al, [ds:fat32_number_of_fats]
 	mul edx
 	add eax, [ds:fat32_fat_start]
 	mov [ds:fat32_data_area_start], eax
 
 	popa
+	ret
+
+
+;in -> esi ptr to string
+;out -> eax cluster of file (0 = error)
+;out -> edx size of file
+search_file_in_root:
+	pusha
+
+	mov eax, [ds:fat32_root_cluster]
+	mov [ds:sfir_clust], eax
+
+
+	mov [ds:sfir_string_ptr], esi
+
+
+	;eax cluster to parse
+.parse_cluster:
+	;parse cluster
+
+
+	mov eax, [ds:sfir_clust]
+	;in eax cluster, out edx:eax sector
+	call fat32_get_first_sector_of_cluster
+	mov [ds:sfir_sect_low], eax
+	mov [ds:sfir_sect_high], edx
+
+
+
+	xor ecx, ecx
+	mov cl, [ds:fat32_sectors_per_cluster]
+.parse_sector:
+	;because there is a nested loop the ecx reg must be saved after the loop instruction
+	;and restored before the loop instruction
+	mov [ds:sfir_sector_counter], ecx
+
+	;load sector
+	mov eax, [ds:sfir_sect_low]
+	mov edx, [ds:sfir_sect_high]
+	mov di, [ds:fat32_buffer_offset]
+	call read_sector
+
+	;inner loop
+	mov si, [ds:fat32_buffer_offset]
+	xor ecx, ecx
+	mov ecx, [ds:fat32_sector_size]
+	;divide by the size of the directory entry(32 bytes or 2^5 bytes)
+	shr ecx, 5
+.parse_entry:
+	;check the attr
+	mov al, [ds:si+FAT32_DIR_ATTR_OFFSET]
+	and al, ATTR_LONG_FILE_NAME
+	cmp al, ATTR_LONG_FILE_NAME
+	je .parse_entry_loop_end
+	;check if it's used
+	cmp byte [ds:si], 0
+	je .error_exit
+
+	cmp byte [ds:si], 0xE5
+	je .parse_entry_loop_end
+
+	call fat32_print_dir_entry
+
+	;check the name first first 4 bytes
+	mov di, [ds:sfir_string_ptr]
+	mov edx, [ds:si]
+	cmp edx, [ds:di]
+	jne .parse_entry_loop_end
+
+	;check the name first 8 bytes
+	mov edx, [ds:si+4]
+	cmp edx, [ds:di+4]
+	jne .parse_entry_loop_end
+	
+	;check the name last 3 bytes
+	mov edx, [ds:si+8]
+	and edx, 0x00FFFFFF
+	mov ebx, [ds:di+8]
+	and ebx, 0x00FFFFFF
+	cmp ebx, edx
+	jne .parse_entry_loop_end
+	
+	;if the name is the same
+	xor eax, eax
+	;high 2 bytes
+	mov ax, [ds:si+20]
+	shl eax, 16
+	;low 2 bytes
+	mov ax, [ds:si+26]
+
+	mov si, fat32_file_found_msg
+	call printc
+
+	jmp .exit
+
+.parse_entry_loop_end:
+	add si, 32
+	loop .parse_entry
+	
+	;increment sector
+	mov eax, [ds:sfir_sect_low]
+	mov edx, [ds:sfir_sect_high]
+	inc eax
+	jnc .no_carry
+	inc edx
+.no_carry:
+	mov [ds:sfir_sect_low], eax
+	mov [ds:sfir_sect_high], edx
+
+	mov ecx, [ds:sfir_sector_counter]
+	;loop not used because the jump is pretty long
+	;loop .parse_sector
+	dec ecx
+	jnz .parse_sector
+	
+	;in eax -> value of parsed cluster
+	mov eax, [ds:sfir_clust]
+	call get_fat_entry
+	mov [ds:sfir_clust], eax
+	cmp eax, FAT32_END_OF_CHAIN
+	jb .parse_cluster
+
+	;if it doesn't find the entry return 0 as error
+.error_exit:
+	mov si, fat32_file_not_found_msg
+	call printc
+	xor eax, eax
+.exit:
+	popa
+	mov [ds:fat32_temp], eax
+	mov eax, [ds:fat32_temp]
 	ret
 
 
@@ -121,6 +255,56 @@ get_fat_entry:
 	pop di
 	ret
 
+
+;in -> eax cluster sector
+;out -> eax low lba sector, edx high lba sector
+fat32_get_first_sector_of_cluster:
+	push ebx
+	sub eax, 2
+	xor edx, edx
+	mov dl, [ds:fat32_sectors_per_cluster]
+	mul edx
+
+	mov ebx, [ds:partition_offset]
+	add ebx, [ds:fat32_data_area_start]
+
+	add eax, ebx
+	jnc .gfsof_exit
+	inc edx
+	;edx:eax
+.gfsof_exit:
+	pop ebx
+	ret
+
+;in -> esi, dir entry addr
+fat32_print_dir_entry:
+	push esi
+	push cx
+	push eax
+	push ebx
+
+	mov cx, 11
+	mov ebx, 0
+.copy:
+
+	mov al, [ds:esi+ebx]
+	cmp al, 0
+	jz .copy_loop
+	mov [ds:fat32_file_name_buffer+ebx], al
+	inc ebx
+.copy_loop:
+	loop .copy
+
+	mov si, fat32_file_print_msg
+	call printc
+
+	pop ebx
+	pop eax
+	pop cx
+	pop esi
+	ret
+
+
 fat32_error:
 	shr ax, 8
 
@@ -144,7 +328,12 @@ fat32_data:
 
 	fat32_drive_number db 0
 	fat32_err_msg db " fat32 error", 13, 10, 0
-
+	fat32_file_found_msg db "file found", 13, 10, 0
+	fat32_file_not_found_msg db "file not found", 13, 10, 0
+	fat32_temp dd 0
+	fat32_cluster_msg db "reading cluster: ", 0
+	fat32_sector_msg db "reading sector: ", 0
+	fat32_column_msg db ":", 0
 	align 2
 FAT32_DAP:
 	fat32dap_size db 16
@@ -156,4 +345,13 @@ FAT32_DAP:
 	fat32dap_upper_lba dd 0
 
 fat32_other_data:
-	fat32_dbg_msg db "fat32 dbg ", 13, 10, 0
+
+	sfir_clust dd 0
+	sfir_sect_low dd 4
+	sfir_sect_high dd 8
+	sfir_sector_counter dd 12 
+	sfir_string_ptr dd 16
+
+	fat32_file_print_msg db "Fat Dir Entry: "
+	fat32_file_name_buffer times 11 db '?'
+	fat32_endl db 13,10,0
