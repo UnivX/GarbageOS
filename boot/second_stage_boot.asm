@@ -69,11 +69,6 @@ second_stage:
 	int 0x13;jc set if error
 	jc error
 
-    mov si, going_third_msg
-    call printc
-
-	mov ax, [ds:third_stage_entry]
-
 	;now that the third stage is loaded jmp
 	jmp 0x0000:third_stage_entry
 
@@ -97,9 +92,8 @@ hang:;stop the cpu
 
 data:
 	err_msg db " error, ax=", 13, 10, 0
-	no_64bit_err db "long mode err", 13, 10, 0
-    msg db "stg 2 good", 13, 10, 0
-    going_third_msg db "jmp to third", 13, 10, 0
+	no_64bit_err db "cant boot up, the system isn't x86_64", 13, 10, 0
+    msg db "stage 2 good", 13, 10, 0
 	loading_from_msg db "loading from: ", 0
 	hang_msg db "hanging...", 13, 10, 0
 	newline db 13, 10, 0
@@ -125,7 +119,6 @@ times 420-($-$$) db 0
 
 
 third_stage_entry:
-	nop
 	;----PROTECTION MODE SETUP----
 	;disable_nmi
 	in al, 0x70
@@ -213,9 +206,14 @@ bits 16
 	;eax-> file_start_cluster
 	;edx-> file_size
 	push edx
-	mov edi, 0x10000000
+	mov edi, 0x01000000
 	call load_file_in_memory
 	pop edx
+
+	mov byte [ds:edi+edx], 13
+	mov byte [ds:edi+edx+1], 0
+	mov esi, 0x01000000
+	call printc_unreal
 
 
 	jmp hang

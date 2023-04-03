@@ -78,3 +78,23 @@ prnt:
 printdone:
     popa
     ret
+
+
+printc_unreal:;procedure to print a null terminated string
+    pusha
+	push esi
+.uprnt:
+    xor ax, ax
+    xor bx, bx
+    mov ds, ax
+    mov ah, 0x0e
+    mov al, [ds:esi]
+    cmp bl, al
+    jz .uprintdone
+    inc esi
+    int 0x10
+    jmp .uprnt
+.uprintdone:
+	pop esi
+    popa
+    ret

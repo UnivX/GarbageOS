@@ -74,6 +74,7 @@ init_fat32_driver:
 load_file_in_memory:
 	pusha
 
+	mov [ds:lfim_clus], eax
 .lfim_parse_cluster:
 
 	mov eax, [ds:lfim_clus]
@@ -84,7 +85,6 @@ load_file_in_memory:
 .lfim_parse_sector:
 
 	;load the sector
-	call print_eax
 	push edx
 	push eax
 	push edi
@@ -186,7 +186,7 @@ search_file_in_root:
 	cmp byte [ds:si], 0xE5
 	je .parse_entry_loop_end
 
-	call fat32_print_dir_entry
+	;call fat32_print_dir_entry
 
 	;check the name first first 4 bytes
 	mov di, [ds:sfir_string_ptr]
@@ -217,8 +217,8 @@ search_file_in_root:
 
 	mov edx, [ds:si+28];size of file
 
-	mov si, fat32_file_found_msg
-	call printc
+	;mov si, fat32_file_found_msg
+	;call printc
 
 	jmp .exit
 
@@ -251,8 +251,8 @@ search_file_in_root:
 
 	;if it doesn't find the entry return 0 as error
 .error_exit:
-	mov si, fat32_file_not_found_msg
-	call printc
+	;mov si, fat32_file_not_found_msg
+	;call printc
 	xor eax, eax
 .exit:
 	mov [ds:fat32_temp], eax
@@ -329,6 +329,7 @@ fat32_get_first_sector_of_cluster:
 
 	mov ebx, [ds:partition_offset]
 	add ebx, [ds:fat32_data_area_start]
+
 
 	add eax, ebx
 	jnc .gfsof_exit
