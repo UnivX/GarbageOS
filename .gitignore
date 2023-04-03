@@ -34,4 +34,5 @@
 *.bin
 *.iso
 *.img
+./build/*
 ./build
