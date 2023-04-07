@@ -129,12 +129,12 @@ load_file_in_memory:
 	ret
 
 ;in -> esi ptr to string
+;in -> eax dir start cluster
 ;out -> eax cluster of file (0 = error)
 ;out -> edx size of file
-search_file_in_root:
+search_file_in_dir:
 	pusha
 
-	mov eax, [ds:fat32_root_cluster]
 	mov [ds:sfir_clust], eax
 
 

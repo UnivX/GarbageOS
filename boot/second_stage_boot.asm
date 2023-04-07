@@ -24,6 +24,7 @@ second_stage:
     xor ax, ax
     mov ss, ax
     mov ds, ax
+	mov es, ax
     mov ax, STACK_BOTTOM_OFFSET  ;the stack is located after the second part in RAM
     mov bp, ax
     add ax, STACK_SIZE
@@ -119,11 +120,17 @@ times 420-($-$$) db 0
 
 
 third_stage_entry:
+	;notify bios of the target mode (long mode)
+	mov ax, 0xec00
+	mov bl, 2
+	int 15h
+
+
 	;----PROTECTION MODE SETUP----
 	;disable_nmi
 	in al, 0x70
 	or al, 0x80
-	out 0x80, al
+	out 0x70, al
 	in al, 0x71
 
 	;check if a20 bios functions are supported
@@ -201,8 +208,17 @@ bits 16
 	mov si, fat32_init_msg
 	call printc
 
+	mov esi, sys_root_name
+	mov eax, [ds:fat32_root_cluster]
+	call search_file_in_dir
+	cmp eax, 0
+	jz file_or_dir_not_found
+
 	mov esi, test_file_name
-	call search_file_in_root
+	call search_file_in_dir
+	cmp eax, 0
+	jz file_or_dir_not_found
+
 	;eax-> file_start_cluster
 	;edx-> file_size
 	push edx
@@ -215,9 +231,28 @@ bits 16
 	mov esi, 0x01000000
 	call printc_unreal
 
+	;enable_nmi
+	in al, 0x70
+	and al, 0x7F
+	out 0x70, al
+	in al, 0x71
+
+	
+	mov di, [ds:free_memory_offset]
+	mov [ds:memory_map_offset], di
+	call get_memory_map
+	mov [ds:free_memory_offset], di
+
+	mov si, memory_detection_good
+	call printc
+
 
 	jmp hang
 
+file_or_dir_not_found:
+	mov si, dir_or_file_not_found_msg
+	call printc
+	jmp hang
 
 a20_error:
 	mov si, a20_err
@@ -226,12 +261,17 @@ a20_error:
 
 
 third_stage_data:
+	dir_or_file_not_found_msg db "dir or file not found", 13, 10, 0
 	a20_err db "a20 err", 13, 10, 0
 	a20_good db "a20 good", 13, 10, 0
 	unreal_mode_good db "unreal mode good", 13, 10, 0
 	gdt_loaded db "gdt loaded", 13, 10, 0
 	fat32_init_msg db "fat32 driver init good", 13, 10, 0
 	test_file_name db "T       TXT", 13, 10, 0
+	sys_root_name db "SYS        ", 13, 10, 0
+	memory_detection_good db "memory detection good", 13, 10, 0
+	free_memory_offset dw END_OF_BOOTLOADER
+	memory_map_offset dd 0
 
 UNREAL_GDT:
 	dq 0x0000000000000000;NULL
@@ -246,3 +286,5 @@ unreal_gdtr:
 third_stage_libs:
 
 	%include "fat32.asm"
+	%include "memory_detect.asm"
+END_OF_BOOTLOADER:
