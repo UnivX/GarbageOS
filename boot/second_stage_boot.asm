@@ -1,4 +1,5 @@
 %define STACK_SIZE 2048
+%define VBE_BUFFER_SIZE 1024
 %define STACK_BOTTOM_OFFSET 0x0600
 %define FREE_LOW_MEM_ADDR STACK_SIZE+STACK_BOTTOM_OFFSET
 %define TSS_SIZE_PROTECTED_MODE 0x6c
@@ -196,8 +197,31 @@ bits 16
 	xor ax, ax
 	mov ds, ax
 
+	;enable_nmi
+	in al, 0x70
+	and al, 0x7F
+	out 0x70, al
+	in al, 0x71
+
 	mov si, unreal_mode_good
 	call printc
+
+	mov di, [ds:free_memory_offset]
+	call init_vbe
+	add word [ds:free_memory_offset], VBE_BUFFER_SIZE;1024
+
+	mov si, vbe_init_msg
+	call printc
+
+	mov di, [ds:free_memory_offset]
+	mov [ds:memory_map_offset], di
+	call get_memory_map
+	mov [ds:free_memory_offset], di
+
+	mov si, memory_detection_good
+	call printc
+
+	
 
 
 	mov dl, [ds:drive_number]
@@ -230,21 +254,7 @@ bits 16
 	mov byte [ds:edi+edx+1], 0
 	mov esi, 0x01000000
 	call printc_unreal
-
-	;enable_nmi
-	in al, 0x70
-	and al, 0x7F
-	out 0x70, al
-	in al, 0x71
-
 	
-	mov di, [ds:free_memory_offset]
-	mov [ds:memory_map_offset], di
-	call get_memory_map
-	mov [ds:free_memory_offset], di
-
-	mov si, memory_detection_good
-	call printc
 
 
 	jmp hang
@@ -267,6 +277,7 @@ third_stage_data:
 	unreal_mode_good db "unreal mode good", 13, 10, 0
 	gdt_loaded db "gdt loaded", 13, 10, 0
 	fat32_init_msg db "fat32 driver init good", 13, 10, 0
+	vbe_init_msg db "vbe driver init good", 13, 10, 0
 	test_file_name db "T       TXT", 13, 10, 0
 	sys_root_name db "SYS        ", 13, 10, 0
 	memory_detection_good db "memory detection good", 13, 10, 0
@@ -287,4 +298,5 @@ third_stage_libs:
 
 	%include "fat32.asm"
 	%include "memory_detect.asm"
+	%include "vbe.asm"
 END_OF_BOOTLOADER:

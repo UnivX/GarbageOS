@@ -6,7 +6,10 @@
 ;uint32 unused
 ;n list entry(24 bytes)
 get_memory_map:
-	pusha
+	push ebx
+	push eax
+	push edx
+	push ecx
 
 	mov [ds:md_edi_buffer], edi
 	mov dword [ds:di], 0
@@ -34,11 +37,13 @@ get_memory_map:
 	jmp .gmm_read_entry
 
 .gmm_end:
-	popa
+	pop ecx
+	pop edx
+	pop eax
+	pop ebx
 	ret
 
 .gmm_err:
-	popa
 	mov si, gmm_err_msg
 	call printc
 	jmp hang
