@@ -221,9 +221,6 @@ bits 16
 	mov si, memory_detection_good
 	call printc
 
-	
-
-
 	mov dl, [ds:drive_number]
 	xor eax, eax
 	mov ax, FREE_LOW_MEM_ADDR
@@ -231,7 +228,6 @@ bits 16
 
 	mov si, fat32_init_msg
 	call printc
-
 	mov esi, sys_root_name
 	mov eax, [ds:fat32_root_cluster]
 	call search_file_in_dir
@@ -254,6 +250,13 @@ bits 16
 	mov byte [ds:edi+edx+1], 0
 	mov esi, 0x01000000
 	call printc_unreal
+
+	mov ax, 1024
+	mov bx, 768
+	mov cx, 24
+	call try_load_mode
+	test ax, ax
+	jne vbe_mode_error
 	
 
 
@@ -269,8 +272,14 @@ a20_error:
 	call printc
 	jmp hang
 
+vbe_mode_error:
+	mov si, vbe_mode_error_msg
+	call printc
+	jmp hang
+
 
 third_stage_data:
+	vbe_mode_error_msg db "error while setting vbe mode", 13, 10, 0
 	dir_or_file_not_found_msg db "dir or file not found", 13, 10, 0
 	a20_err db "a20 err", 13, 10, 0
 	a20_good db "a20 good", 13, 10, 0

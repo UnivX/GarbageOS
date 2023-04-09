@@ -9,6 +9,7 @@ init_vbe:
 	;get VESA BIOS information
 	mov ax, 0x4f00
 	mov di, [ds:vbe_info_struct]
+	mov dword [ds:vbe_info_struct], "VBE2"
 	int 0x10
 	cmp ax, 0x004f
 	jne vbe_init_error
@@ -20,13 +21,107 @@ init_vbe:
 	popa
 	ret
 
+;in ax -> width
+;in bx -> height
+;in cx -> bits per pixel(bpp)
+;out ax != 0 -> cannot load mode
+try_load_mode:
+	pusha
+	mov [ds:vbe_width], ax
+	mov [ds:vbe_height], bx
+	mov [ds:vbe_bpp], cx
+
+	;set up the segment:offset for the modes at es:si
+	mov ax, [ds:vbe_info_struct+14]
+	mov si, ax
+	mov ax, [ds:vbe_info_struct+14+2]
+	mov es, ax
+
+.tlm_parse_mode:
+	;load mode number in ds:vbe_mode
+	mov dx, [es:si]
+	mov [ds:vbe_mode_number], dx
+	add si, 2
+
+	cmp dx, 0xffff
+	je .tlm_error
+
+	;read mode_info_struct
+	push es
+	xor ax, ax
+	mov es, ax
+	mov di, vbe_mode_info_struct
+	;set up es:di to the vbe_mode_info_struct ptr
+	mov ax, 0x4f01
+	mov cx, [ds:vbe_mode_number];set cx as the mode number
+	int 0x10
+	cmp ax, 0x004f
+	jne vbe_bios_int_error
+	pop es
+
+	;check if it's a linear buffer
+	mov al, [ds:vbe_mode_info_struct]
+	and al, 0x80
+	jz .tlm_parse_mode
+
+
+	mov ax, [ds:vbe_width]
+	cmp ax, [ds:vbe_mode_info_struct+18];width
+	jne .tlm_parse_mode
+
+	mov ax, [ds:vbe_height]
+	cmp ax, [ds:vbe_mode_info_struct+20];height
+	jne .tlm_parse_mode
+
+	mov al, [ds:vbe_bpp]
+	cmp al, [ds:vbe_mode_info_struct+25];bpp
+	jne .tlm_parse_mode
+
+	;found right mode
+	;load it
+	mov ax, 0x4f02
+	;bx mode number plus LFB
+	mov bx, (1<<14);LFB(Linear Frame Buffer) bit set
+	or bx, [ds:vbe_mode_number];
+	int 0x10
+	cmp ax, 0x004f
+	jne vbe_bios_int_error
+
+	mov ax, 0
+	jmp .tlm_end
+.tlm_error:
+	mov ax, 1
+.tlm_end:
+	mov [ds:vbe_temp_ret_value], ax
+	popa
+	xor ax, ax
+	mov es, ax
+	mov ax, [ds:vbe_temp_ret_value]
+	ret
+
 vbe_init_error:
+	xor ax, ax
+	mov es, ax
 	mov si, vbe_init_error_msg
 	call printc
+	jmp hang
+
+vbe_bios_int_error:
+	xor ax, ax
+	mov es, ax
+	mov si, vbe_error_bios_int_msg
+	call printc
+	jmp hang
 
 vbe_data:
 	vbe_buffer_offset dd 0
 	vbe_info_struct dd 0
 	vbe_mode_info_struct dd 0
 	vbe_init_error_msg db "VBE 2.0+ BIOS extension not supported", 13, 10, 0
+	vbe_error_bios_int_msg db "VBE error while using bios interrupt",13,10,0
 	vbe2_signature db "VESA"
+	vbe_bpp dw 0
+	vbe_width dw 0
+	vbe_height dw 0
+	vbe_temp_ret_value dw 0
+	vbe_mode_number dw 0
