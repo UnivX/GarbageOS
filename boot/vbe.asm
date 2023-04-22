@@ -7,14 +7,16 @@ init_vbe:
 	mov [ds:vbe_mode_info_struct], di
 	
 	;get VESA BIOS information
-	mov ax, 0x4f00
+	xor ax, ax
+	mov es, ax
 	mov di, [ds:vbe_info_struct]
-	mov dword [ds:vbe_info_struct], "VBE2"
+	mov ax, 0x4f00
 	int 0x10
 	cmp ax, 0x004f
 	jne vbe_init_error
 
-	mov ax, [ds:vbe_info_struct+4]
+	mov di, [ds:vbe_info_struct]
+	mov ax, [ds:di+4]
 	cmp ax, 0x200
 	jb vbe_init_error
 
@@ -30,16 +32,19 @@ try_load_mode:
 	mov [ds:vbe_width], ax
 	mov [ds:vbe_height], bx
 	mov [ds:vbe_bpp], cx
+	xor ax, ax
+	mov es, ax
 
 	;set up the segment:offset for the modes at es:si
-	mov ax, [ds:vbe_info_struct+14]
+	mov bx, [ds:vbe_info_struct]
+	mov ax, [ds:bx+14]
 	mov si, ax
-	mov ax, [ds:vbe_info_struct+14+2]
-	mov es, ax
+	mov ax, [ds:bx+14+2]
+	mov fs, ax
 
 .tlm_parse_mode:
 	;load mode number in ds:vbe_mode
-	mov dx, [es:si]
+	mov dx, [fs:si]
 	mov [ds:vbe_mode_number], dx
 	add si, 2
 
@@ -48,9 +53,7 @@ try_load_mode:
 
 	;read mode_info_struct
 	push es
-	xor ax, ax
-	mov es, ax
-	mov di, vbe_mode_info_struct
+	mov di, [ds:vbe_mode_info_struct]
 	;set up es:di to the vbe_mode_info_struct ptr
 	mov ax, 0x4f01
 	mov cx, [ds:vbe_mode_number];set cx as the mode number
@@ -60,22 +63,23 @@ try_load_mode:
 	pop es
 
 	;check if it's a linear buffer
-	mov al, [ds:vbe_mode_info_struct]
+	mov bx, [ds:vbe_mode_info_struct]
+	mov al, [ds:bx]
 	and al, 0x80
 	jz .tlm_parse_mode
 
+	mov al, [ds:vbe_bpp]
+	cmp al, [ds:bx+25];bpp
+	jne .tlm_parse_mode
 
 	mov ax, [ds:vbe_width]
-	cmp ax, [ds:vbe_mode_info_struct+18];width
+	cmp ax, [ds:bx+18];width
 	jne .tlm_parse_mode
 
 	mov ax, [ds:vbe_height]
-	cmp ax, [ds:vbe_mode_info_struct+20];height
+	cmp ax, [ds:bx+20];height
 	jne .tlm_parse_mode
 
-	mov al, [ds:vbe_bpp]
-	cmp al, [ds:vbe_mode_info_struct+25];bpp
-	jne .tlm_parse_mode
 
 	;found right mode
 	;load it

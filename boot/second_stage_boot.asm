@@ -207,13 +207,6 @@ bits 16
 	call printc
 
 	mov di, [ds:free_memory_offset]
-	call init_vbe
-	add word [ds:free_memory_offset], VBE_BUFFER_SIZE;1024
-
-	mov si, vbe_init_msg
-	call printc
-
-	mov di, [ds:free_memory_offset]
 	mov [ds:memory_map_offset], di
 	call get_memory_map
 	mov [ds:free_memory_offset], di
@@ -250,6 +243,13 @@ bits 16
 	mov byte [ds:edi+edx+1], 0
 	mov esi, 0x01000000
 	call printc_unreal
+
+	mov di, [ds:free_memory_offset]
+	call init_vbe
+	add word [ds:free_memory_offset], VBE_BUFFER_SIZE;1024
+
+	mov si, vbe_init_msg
+	call printc
 
 	mov ax, 1024
 	mov bx, 768
