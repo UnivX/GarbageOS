@@ -22,6 +22,8 @@ SIZE=71520
 ./tools/fat32_maker.out volume_size="$SIZE" file=build/bootable.iso file_offset=1 boot_code=boot/second_stage_boot.bin
 
 sudo mount -t vfat -o loop,offset=512 build/bootable.iso build/iso
-mkdir build/iso/sys/
-echo 'this message is being printed from a file as a test' > build/iso/sys/t.txt
+sudo mkdir build/iso/sys/
+cd build/iso/sys
+sudo echo 'this message is being printed from a file as a test' > t.txt
+cd ../../../
 sudo umount build/iso

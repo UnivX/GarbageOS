@@ -90,7 +90,7 @@ hang:;stop the cpu
 	mov si, hang_msg
 	call printc
     cli
-    hlt
+	hlt
 
 data:
 	err_msg db " error, ax=", 13, 10, 0
@@ -244,6 +244,7 @@ bits 16
 	mov esi, 0x01000000
 	call printc_unreal
 
+	;init_vbe driver
 	mov di, [ds:free_memory_offset]
 	call init_vbe
 	add word [ds:free_memory_offset], VBE_BUFFER_SIZE;1024
@@ -251,16 +252,40 @@ bits 16
 	mov si, vbe_init_msg
 	call printc
 
+	;try load 32 bit depth
+	mov ax, 1024
+	mov bx, 768
+	mov cx, 32
+	call try_load_mode
+	cmp ax, 0
+	je vbe_good
+
+	;try load 24 bit depth
 	mov ax, 1024
 	mov bx, 768
 	mov cx, 24
 	call try_load_mode
-	test ax, ax
-	jne vbe_mode_error
+	cmp ax, 0
+	je vbe_good
+	jmp vbe_mode_error
 	
 
+vbe_good:
+	mov bx, [ds:vbe_mode_info_struct]
+	mov ebx, [ds:bx+40];get_frame_buffer_address in 32 bit address
+	;write the first 12 bytes as 0xff(if 32 bit depth then 3 pixels, if 24 bit then 4 pixels)
+	mov edx, 1024*768
+	mov eax, [ds:vbe_bpp]
+	mul edx
 
-	jmp hang
+write_vbe_mem:
+	mov byte [ds:ebx], 0xff
+	add ebx, 1
+	dec eax
+	jnz write_vbe_mem
+
+.true_loop:
+	jmp .true_loop
 
 file_or_dir_not_found:
 	mov si, dir_or_file_not_found_msg
