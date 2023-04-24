@@ -94,14 +94,18 @@ int main(int argc, char** argv){
 	static_assert(sizeof(PartitionTableEntry) == 16, "PartitionTableEntry != 16!!");
 	static_assert(sizeof(MBR) == 512, "MBR != 512!!");
 
-	if(argc != 4){
-		std::cerr << "usage: " << argv[0] << " <mbr_iso_file> <fat32 partition size(in sectors)> <binary_bootloader_image>" << std::endl;
+	if(argc < 4){
+		std::cout << "[MBR MAKER ERROR] usage: " << argv[0] << " <mbr_iso_file> <fat32 partition size(in sectors)> <binary_bootloader_image> <optional-no_verbose_flag(digit no_verbose)>" << std::endl;
 		return -1;
 	}
 
 	uint32_t fat32_size_in_sectors = atoi(argv[2]);
 	std::string mbr_path(argv[1]);
 	std::string bootloader_path(argv[3]);
+	bool no_verbose = false;
+	if(argc == 5){
+		no_verbose = std::string(argv[4]) == "no_verbose";
+	}
 
 	//read code
 	uint32_t bootloader_code_size;
@@ -110,15 +114,19 @@ int main(int argc, char** argv){
 	//construct the partial image of the disk
 	//create buffer for the partial image
 	uint32_t partial_image_size_in_sectors = (bootloader_code_size-sizeof(MBR::bootloader_code));//size in bytes
-	std::cerr << "bootloader code size in bytes: " << bootloader_code_size << std::endl;
+	if(!no_verbose)
+		std::cout << "[MBR MAKER INFO] bootloader code size in bytes: " << bootloader_code_size << std::endl;
 	partial_image_size_in_sectors = (partial_image_size_in_sectors / 512) + ((partial_image_size_in_sectors % 512) != 0) +1;//convert to sectors with round up, +1 for the MBR
-	std::cerr << "sector used for the bootloader code(mbr included): " << partial_image_size_in_sectors << std::endl;
+	if(!no_verbose)
+		std::cout << "[MBR MAKER INFO] sector used for the bootloader code(mbr included): " << partial_image_size_in_sectors << std::endl;
 
 	uint32_t real_partial_image_buffer_size = partial_image_size_in_sectors*512;
 	char* partial_image_buffer = reinterpret_cast<char*>(malloc(real_partial_image_buffer_size));
 
-	std::cerr << "it will be printed the first FAT32 sector(aka VBR) on stdout, all the previous prints were done on stderr(so you can remove it): " << std::endl;
-	std::cout << partial_image_size_in_sectors << std::endl;
+	if(no_verbose)
+		std::cout << partial_image_size_in_sectors << std::endl;
+	else
+		std::cout << "[MBR MAKER INFO] first FAT32 sector(aka VBR): " << partial_image_size_in_sectors << std::endl;
 
 	//set up the MBR
 	MBR* mbr_ptr = reinterpret_cast<MBR*>(partial_image_buffer);

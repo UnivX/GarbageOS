@@ -179,14 +179,14 @@ char* makeFat32VBR(char* vbr_in, std::string volume_name, uint32_t size_of_fat_i
 	const uint8_t number_of_fats = 2;
 	const uint16_t reserved_sectors_count = 32;//typical value for fat32 drives
 	if(reserved_sectors_count < 1){
-		std::cerr << "[ERROR] the reserved sector must be at least 1(the VBR)\n";
+		std::cerr << "[FAT32 MAKER ERROR] the reserved sector must be at least 1(the VBR)\n";
 		exit(-1);
 	}
 	if(cluster_size_in_sectors*sector_size > 32*KB){
-		std::cerr << "[WARNING] the cluster size is over 32KB, it can cause compatibility issues\n";
+		std::cerr << "[FAT32 MAKER WARNING] the cluster size is over 32KB, it can cause compatibility issues\n";
 	}
 	if(volume_name.size() > VBR_SIZE_VOL_LAB){
-		std::cerr << "[ERROR] the volume label cannot bigger than 11 chars\n";
+		std::cerr << "[FAT32 MAKER ERROR] the volume label cannot bigger than 11 chars\n";
 		exit(-1);
 	}
 
@@ -233,19 +233,19 @@ char* makeFat32VBR(char* vbr_in, std::string volume_name, uint32_t size_of_fat_i
 
 	uint32_t total_size = read_at<uint16_t>(vbr_in, VBR_OFFSET_RSVD_SEC_CNT, VBR_SIZE_RSVD_SEC_CNT) + (number_of_fats*size_of_fat_in_sectors) -1;
 	
-	std::cerr << "[INFO]reserved sectors size: " << read_at<uint16_t>(vbr_in, VBR_OFFSET_RSVD_SEC_CNT, VBR_SIZE_RSVD_SEC_CNT) << std::endl;
-	std::cerr << "[INFO]FAT sectors size: " <<  getFatAreaSize(vbr_in) << std::endl;
-	std::cerr << "[INFO]Data sectors size: " << getDataAreaSize(vbr_in) << std::endl;
+	std::cerr << "[FAT32 MAKER INFO] reserved sectors size: " << read_at<uint16_t>(vbr_in, VBR_OFFSET_RSVD_SEC_CNT, VBR_SIZE_RSVD_SEC_CNT) << std::endl;
+	std::cerr << "[FAT32 MAKER INFO] FAT sectors size: " <<  getFatAreaSize(vbr_in) << std::endl;
+	std::cerr << "[FAT32 MAKER INFO] Data sectors size: " << getDataAreaSize(vbr_in) << std::endl;
 	assert(getDataAreaSize(vbr_in) + getFatAreaSize(vbr_in) + read_at<uint16_t>(vbr_in, VBR_OFFSET_RSVD_SEC_CNT, VBR_SIZE_RSVD_SEC_CNT) == size_of_volume_in_sectors);
 
 	
 	if(total_size > size_of_volume_in_sectors){
-		std::cerr << "[ERROR] the size of the volume is too small for the used parameters\n";
+		std::cerr << "[FAT32 MAKER ERROR] the size of the volume is too small for the used parameters\n";
 		exit(-1);
 	}
 	
 	if(getClusterCount(vbr_in) < MIN_FAT32_CLUSTERS){
-		std::cerr << "[ERROR] there aren't enough clusters for the volume to be a fat32(clusters="<< getClusterCount(vbr_in) << ") there should be at least " << MIN_FAT32_CLUSTERS << "\n";
+		std::cerr << "[FAT32 MAKER ERROR] there aren't enough clusters for the volume to be a fat32(clusters="<< getClusterCount(vbr_in) << ") there should be at least " << MIN_FAT32_CLUSTERS << "\n";
 		exit(-1);
 	}
 	return vbr_in;
@@ -307,6 +307,10 @@ void writeBootCode(FileImage& image, std::string boot_code_path){
 	uint32_t code_size = boot_code_file.tellg();
 	auto code_buffer = std::make_unique<char[]>(code_size);
 	boot_code_file.seekg(0);
+	if(code_size <= 0 || !boot_code_file.good()){
+		std::cerr << "[FAT32 MAKER ERROR] cannot open the boootcode file" << std::endl;
+		exit(-1);
+	}
 	boot_code_file.read(code_buffer.get(), code_size);
 
 	//copy the first part of the boot code
@@ -326,7 +330,7 @@ void writeBootCode(FileImage& image, std::string boot_code_path){
 		if(size_of_data_to_write > image.getSectorSize())
 			size_of_data_to_write = image.getSectorSize();
 
-		std::cerr << "[INFO] writing boot code(offset: " << code_offset << ", size: " << size_of_data_to_write << ") into sector " << sector_to_write << "\n";
+		std::cerr << "[FAT32 MAKER INFO] writing boot code(offset: " << code_offset << ", size: " << size_of_data_to_write << ") into sector " << sector_to_write << "\n";
 
 		memcpy(sector_buffer.get(), code_buffer.get() + code_offset, size_of_data_to_write);
 
@@ -335,7 +339,7 @@ void writeBootCode(FileImage& image, std::string boot_code_path){
 		code_offset += size_of_data_to_write;
 		sector_to_write++;
 	}
-	std::cerr << "[INFO] copied second stage code\n";
+	std::cerr << "[FAT32 MAKER INFO] copied second stage code\n";
 }
 
 uint32_t readFatEntry(FileImage& image, uint32_t entry){
@@ -437,7 +441,7 @@ void readIntParamIfPresent(int* param, std::string arg, std::string prefix){
 		if(containsPrefix(prefix, arg)){
 			auto parsed = tryParseIntOption(arg.substr(prefix.size(), arg.size()-prefix.size()));
 			if(!parsed.second){
-				std::cerr << "[ERROR] " << prefix << " the parameter isn't a number\n" << std::endl;
+				std::cerr << "[FAT32 MAKER ERROR] " << prefix << " the parameter isn't a number\n" << std::endl;
 			}
 			*param = parsed.first;
 		}
@@ -485,7 +489,7 @@ int main(int argc, char** argv){
 
 	makeFat32VBR(vbr, "test", fat_size, volume_size, cluster_size, sector_size);
 	if(boot_code_path.size() != 0){
-		std::cerr << "[INFO] going to copy second stage code\n";
+		std::cerr << "[FAT32 MAKER INFO] going to copy second stage code\n";
 	}
 	image.writeSector(0, vbr);
 	makeFSInfoSector(fs_info, vbr);
