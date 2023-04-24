@@ -221,6 +221,8 @@ bits 16
 
 	mov si, fat32_init_msg
 	call printc
+
+	;print the test file
 	mov esi, sys_root_name
 	mov eax, [ds:fat32_root_cluster]
 	call search_file_in_dir
@@ -243,6 +245,19 @@ bits 16
 	mov byte [ds:edi+edx+1], 0
 	mov esi, 0x01000000
 	call printc_unreal
+
+	;try locate the kernel
+
+	mov esi, sys_root_name
+	mov eax, [ds:fat32_root_cluster]
+	call search_file_in_dir
+	cmp eax, 0
+	jz file_or_dir_not_found
+
+	mov esi, kernel_file_name
+	call search_file_in_dir
+	cmp eax, 0
+	jz kernel_not_found
 
 	;init_vbe driver
 	mov di, [ds:free_memory_offset]
@@ -302,9 +317,15 @@ vbe_mode_error:
 	call printc
 	jmp hang
 
+kernel_not_found:
+	mov si, kernel_not_found_msg
+	call printc
+	jmp hang
+
 
 third_stage_data:
 	vbe_mode_error_msg db "error while setting vbe mode", 13, 10, 0
+	kernel_not_found_msg db "cannot find /sys/krnl.bin", 13, 10, 0
 	dir_or_file_not_found_msg db "dir or file not found", 13, 10, 0
 	a20_err db "a20 err", 13, 10, 0
 	a20_good db "a20 good", 13, 10, 0
@@ -313,6 +334,7 @@ third_stage_data:
 	fat32_init_msg db "fat32 driver init good", 13, 10, 0
 	vbe_init_msg db "vbe driver init good", 13, 10, 0
 	test_file_name db "T       TXT", 13, 10, 0
+	kernel_file_name db "KRNL    BIN", 13, 10, 0
 	sys_root_name db "SYS        ", 13, 10, 0
 	memory_detection_good db "memory detection good", 13, 10, 0
 	free_memory_offset dw END_OF_BOOTLOADER
