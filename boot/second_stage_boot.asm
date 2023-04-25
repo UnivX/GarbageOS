@@ -36,30 +36,21 @@ second_stage:
     mov si, msg
     call printc
 
-	;check if the cpu is 64 bit
-	mov eax, 0x80000001
-	cpuid
-	test edx, (1 << 29)
-	jz no_64bit_error
-
-
-	;load the third stage
-	;set the lba
-
+	;LOADING FROM PRINT
     mov si, loading_from_msg
     call printc
-
 	mov ax, [ds:BK_BOOT_SEC_ADDRESS]
 	add ax, 3;size of backup
 	add ax, [ds:partition_offset]
 	call print_ax
-
     mov si, newline
     call printc
 
+	;LOADING THE THIRD STAGE
+	;set the lba
 	xor eax, eax
 	mov ax, [ds:BK_BOOT_SEC_ADDRESS]
-	add al, 3;size of backup 
+	add eax, 3;size of backup 
 	add eax, [ds:partition_offset]
 	mov [ds:dap_lower_lba], eax
 	;lower_lba+2 = 0
@@ -73,12 +64,6 @@ second_stage:
 
 	;now that the third stage is loaded jmp
 	jmp 0x0000:third_stage_entry
-
-
-no_64bit_error:
-	mov si, no_64bit_err
-	call printc
-	jmp hang
 
 error:;jump to it when there is an error
     call print_ax
@@ -94,7 +79,6 @@ hang:;stop the cpu
 
 data:
 	err_msg db " error, ax=", 13, 10, 0
-	no_64bit_err db "cant boot up, the system isn't x86_64", 13, 10, 0
     msg db "stage 2 good", 13, 10, 0
 	loading_from_msg db "loading from: ", 0
 	hang_msg db "hanging...", 13, 10, 0
@@ -116,55 +100,22 @@ libs:
 
 times 420-($-$$) db 0
 
-
-
-
-
 third_stage_entry:
 	;notify bios of the target mode (long mode)
 	mov ax, 0xec00
 	mov bl, 2
 	int 15h
 
+	;----CHECK THE COMPATIBILITY----
+	call check_cpuid
+	call check_long_mode
 
-	;----PROTECTION MODE SETUP----
-	;disable_nmi
-	in al, 0x70
-	or al, 0x80
-	out 0x70, al
-	in al, 0x71
-
-	;check if a20 bios functions are supported
-	mov ax, 2403h
-	int 15h
-	jb a20_error
-	cmp ah, 0
-	jnz a20_error
-
-	;check if a20 is enabled via bios
-	mov ax, 2402h
-	int 15h
-	jb a20_error
-	cmp ah, 0
-	jnz a20_error
-
-	cmp al, 1
-	jz a20_enabled
-
-	;enable a20 via bios
-	mov ax, 2403h
-	int 15h
-	jb a20_error
-	cmp ah, 0
-	jnz a20_error
-
-a20_enabled:
-	mov si, a20_good
-	call printc
+	;----PROTECTED MODE SETUP----
+	call enable_a20
+	call disable_nmi
 
 	;load gdt
 	lgdt [unreal_gdtr]
-
 	mov si, gdt_loaded
 	call printc
 
@@ -197,77 +148,62 @@ bits 16
 	xor ax, ax
 	mov ds, ax
 
-	;enable_nmi
-	in al, 0x70
-	and al, 0x7F
-	out 0x70, al
-	in al, 0x71
+	call enable_nmi
 
 	mov si, unreal_mode_good
 	call printc
 
+	;---GET MEMORY MAP---
 	mov di, [ds:free_memory_offset]
 	mov [ds:memory_map_offset], di
 	call get_memory_map
 	mov [ds:free_memory_offset], di
-
 	mov si, memory_detection_good
 	call printc
 
+	;---INIT FAT32 DRV---
 	mov dl, [ds:drive_number]
 	xor eax, eax
 	mov ax, FREE_LOW_MEM_ADDR
 	call init_fat32_driver
-
 	mov si, fat32_init_msg
 	call printc
 
-	;print the test file
+	;----FIND /SYS DIR---
 	mov esi, sys_root_name
 	mov eax, [ds:fat32_root_cluster]
 	call search_file_in_dir
 	cmp eax, 0
 	jz file_or_dir_not_found
 
+	;---FIND /SYS/T.TXT FILE---
 	mov esi, test_file_name
 	call search_file_in_dir
 	cmp eax, 0
 	jz file_or_dir_not_found
-
 	;eax-> file_start_cluster
 	;edx-> file_size
+
+	;---LOAD FILE---
 	push edx
 	mov edi, 0x01000000
 	call load_file_in_memory
 	pop edx
 
+	;---PRINT FILE---
 	mov byte [ds:edi+edx], 13
 	mov byte [ds:edi+edx+1], 0
 	mov esi, 0x01000000
 	call printc_unreal
 
-	;try locate the kernel
-
-	mov esi, sys_root_name
-	mov eax, [ds:fat32_root_cluster]
-	call search_file_in_dir
-	cmp eax, 0
-	jz file_or_dir_not_found
-
-	mov esi, kernel_file_name
-	call search_file_in_dir
-	cmp eax, 0
-	jz kernel_not_found
-
-	;init_vbe driver
+	;---INIT VBE DRV---
 	mov di, [ds:free_memory_offset]
 	call init_vbe
 	add word [ds:free_memory_offset], VBE_BUFFER_SIZE;1024
-
 	mov si, vbe_init_msg
 	call printc
 
-	;try load 32 bit depth
+	;---TRY LOAD 1024X768 32 DEPTH---
 	mov ax, 1024
 	mov bx, 768
 	mov cx, 32
@@ -275,7 +211,7 @@ bits 16
 	cmp ax, 0
 	je vbe_good
 
-	;try load 24 bit depth
+	;---TRY LOAD 1024X768 24 DEPTH---
 	mov ax, 1024
 	mov bx, 768
 	mov cx, 24
@@ -283,9 +219,9 @@ bits 16
 	cmp ax, 0
 	je vbe_good
 	jmp vbe_mode_error
-	
 
 vbe_good:
+	;---FILL SCREEN WITH WHITE---
 	mov bx, [ds:vbe_mode_info_struct]
 	mov ebx, [ds:bx+40];get_frame_buffer_address in 32 bit address
 	;write the first 12 bytes as 0xff(if 32 bit depth then 3 pixels, if 24 bit then 4 pixels)
@@ -307,11 +243,6 @@ file_or_dir_not_found:
 	call printc
 	jmp hang
 
-a20_error:
-	mov si, a20_err
-	call printc
-	jmp hang
-
 vbe_mode_error:
 	mov si, vbe_mode_error_msg
 	call printc
@@ -327,8 +258,6 @@ third_stage_data:
 	vbe_mode_error_msg db "error while setting vbe mode", 13, 10, 0
 	kernel_not_found_msg db "cannot find /sys/krnl.bin", 13, 10, 0
 	dir_or_file_not_found_msg db "dir or file not found", 13, 10, 0
-	a20_err db "a20 err", 13, 10, 0
-	a20_good db "a20 good", 13, 10, 0
 	unreal_mode_good db "unreal mode good", 13, 10, 0
 	gdt_loaded db "gdt loaded", 13, 10, 0
 	fat32_init_msg db "fat32 driver init good", 13, 10, 0
@@ -355,4 +284,7 @@ third_stage_libs:
 	%include "fat32.asm"
 	%include "memory_detect.asm"
 	%include "vbe.asm"
+	%include "check_features.asm"
+	%include "a20_enable.asm"
+	%include "nmi.asm"
 END_OF_BOOTLOADER:
