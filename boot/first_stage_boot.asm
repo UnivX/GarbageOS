@@ -90,6 +90,7 @@ error:;jump to it when there is an error
 hang:;stop the cpu 
     cli
     hlt
+	jmp hang
 
 data:
     msg db "Loading the first bootable partition: ", 0

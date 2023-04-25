@@ -79,7 +79,9 @@ hang:;stop the cpu
 	mov si, hang_msg
 	call printc
     cli
+.rhang:
 	hlt
+	jmp .rhang
 
 data:
 	err_msg db " error, ax=", 13, 10, 0
