@@ -63,6 +63,10 @@ find_allocatable_memory:
 	and eax, 3;b11
 	jnz .next_item
 
+	;if the base address is not containable in a 32bit pointer then skip it
+	cmp dword [ds:si+4], 0
+	jnz .next_item
+
 	xor eax, eax;set eax to zero to be prepared to do a clean exit
 	;check if the size is bigger than 2^31 -1, if so we found a suitable item
 	cmp dword [ds:si+8+4], 0
