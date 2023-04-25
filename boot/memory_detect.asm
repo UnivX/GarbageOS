@@ -1,4 +1,6 @@
-;https://wiki.osdev.org/How_Do_I_Determine_The_Amount_Of_RAM
+;https://wiki.osdev.org/Detecting_Memory_(x86)#Getting_an_E820_Memory_Map
+
+
 ;in -> ds:di ptr to buffer
 ;out -> ds:di first byte of free memory after the table
 
@@ -14,11 +16,12 @@ get_memory_map:
 	mov [ds:md_edi_buffer], edi
 	mov dword [ds:di], 0
 	mov dword [ds:di+4],0
+	add edi, 8
 
 	xor ebx, ebx
 .gmm_read_entry:
-	mov dword [ds:di+8], 1
-	mov dword [ds:di+12], 0
+	mov dword [ds:di+20], 0;set the Extended Attributes as 0 if it is
+	;not set by the bios call
 	mov edx, 0x534D4150
 	xor eax, eax
 	mov eax, 0xE820

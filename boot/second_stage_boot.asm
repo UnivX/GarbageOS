@@ -2,14 +2,18 @@
 %define VBE_BUFFER_SIZE 1024
 %define STACK_BOTTOM_OFFSET 0x0600
 %define FREE_LOW_MEM_ADDR STACK_SIZE+STACK_BOTTOM_OFFSET
-%define TSS_SIZE_PROTECTED_MODE 0x6c
-%define TSS_ADDRESS 0x0500
-%define TSS_FLAGS 0x0
-%define TSS_ACCESS_BYTE 0x89
 %define BK_BOOT_SEC_ADDRESS 0x7c00 + 50
 
 org 0x7c00 + 90
 bits 16
+;MEMORY MAP:
+;0x00000000 - 0x000004FF FREE but usable only in long mode or protected_mode
+;0x00000500 - 0x000005FF FREE
+;0x00000600 - 0x000007FF STACK
+;0x00000800 - 0x00007BFF FREE
+;0x00007C00 - 0x00007DFF VBR (second_stage)
+;0x00007E00 - 0x0000FFFF third stage + other run time data
+;0x00010000 - 0x0007FFFF FREE
 
 start:
 	jmp 0x0000:second_stage 
@@ -89,7 +93,7 @@ data:
 DAP:
 	dap_size db 16
 	dap_reserved db 0
-	dap_to_read dw 8
+	dap_to_read dw 20
 	dap_transfer_buffer_offset dw third_stage_entry
 	dap_transfer_buffer_segment dw 0
 	dap_lower_lba dd 0
@@ -203,6 +207,14 @@ bits 16
 	mov si, vbe_init_msg
 	call printc
 
+	;---LOAD KERNEL ELF IMAGE---
+	call load_kernel_image
+	mov si, kernel_load_elf_good
+	call printc
+
+	;---TEMPORARY HANG---
+	jmp hang
+
 	;---TRY LOAD 1024X768 32 DEPTH---
 	mov ax, 1024
 	mov bx, 768
@@ -248,24 +260,19 @@ vbe_mode_error:
 	call printc
 	jmp hang
 
-kernel_not_found:
-	mov si, kernel_not_found_msg
-	call printc
-	jmp hang
 
 
 third_stage_data:
 	vbe_mode_error_msg db "error while setting vbe mode", 13, 10, 0
-	kernel_not_found_msg db "cannot find /sys/krnl.bin", 13, 10, 0
 	dir_or_file_not_found_msg db "dir or file not found", 13, 10, 0
 	unreal_mode_good db "unreal mode good", 13, 10, 0
 	gdt_loaded db "gdt loaded", 13, 10, 0
 	fat32_init_msg db "fat32 driver init good", 13, 10, 0
 	vbe_init_msg db "vbe driver init good", 13, 10, 0
 	test_file_name db "T       TXT", 13, 10, 0
-	kernel_file_name db "KRNL    BIN", 13, 10, 0
 	sys_root_name db "SYS        ", 13, 10, 0
 	memory_detection_good db "memory detection good", 13, 10, 0
+	kernel_load_elf_good db "kernel elf image loaded", 13, 10, 0
 	free_memory_offset dw END_OF_BOOTLOADER
 	memory_map_offset dd 0
 
@@ -287,4 +294,5 @@ third_stage_libs:
 	%include "check_features.asm"
 	%include "a20_enable.asm"
 	%include "nmi.asm"
+	%include "kernel_load.asm"
 END_OF_BOOTLOADER:
