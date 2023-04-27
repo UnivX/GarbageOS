@@ -22,6 +22,40 @@ load_kernel_image:
 	cmp eax, 0
 	jnz .kernel_memory_error
 	mov [ds:memory_map_item_for_kernel_offset], si
+	;print address
+	mov eax, [ds:si]
+	call print_eax
+	mov si, newline
+	call printc
+	;print size
+	mov eax, [ds:si+8]
+	call print_eax
+	mov si, newline
+	call printc
+
+	;---SET THE ADDRESS WHERE TO LOAD THE KERNEL---
+	mov si, [ds:memory_map_item_for_kernel_offset]
+	mov eax, [ds:si] ;address 32bit
+	;if its not after 16MB
+	cmp eax, 0x01000000;16MB
+	ja .set_kernel_address
+	mov eax, 0x01000000;16MB
+.set_kernel_address:
+	mov [ds:kernel_image_address32], eax
+	;if the address is below 16MB the set it at 16MB
+	;TODO check if the memory is enough
+
+	;print the addres where is loaded
+	mov eax, [ds:kernel_image_address32]
+	call print_eax
+	mov si, newline
+	call printc
+
+	;LOAD FILE IN MEMORY no return value to controll
+	mov edi, [ds:kernel_image_address32]
+	mov eax, [ds:kernel_start_cluster]
+	call load_file_in_memory
+	;TODO check that the file is correctly loaded in RAM
 
 	;clean return
 	mov eax, 0
@@ -44,6 +78,9 @@ load_kernel_image:
 ;out -> ds:si list item with the right memory
 ;out -> eax != 0 if error
 ;in -> edx minimum required memory
+;NOTE-> this function guarantees that the returned memory is not the < 1MB memory
+;and that it isn't the usable memory between the first 1MB and the ISA MEMORY HOLE(15-16MB)
+;it dows not guarantee that the start address of the usable memory is after 16MB
 find_allocatable_memory:
 	push ebx
 	push ecx
@@ -57,6 +94,7 @@ find_allocatable_memory:
 	cmp dword [ds:si+16], 1
 	jne .next_item
 
+
 	;if the bit 0/1 of the Extended Attributes is set
 	;if so it is not usable
 	mov eax, [ds:si+20]
@@ -67,11 +105,26 @@ find_allocatable_memory:
 	cmp dword [ds:si+4], 0
 	jnz .next_item
 
+	;if the memory is the <1MB mem then skip
+	;(it is guaranteed to be a memory hole of not usabel ram at the end of the 1MB section)
+	cmp dword [ds:si], 0x000FFFFF
+	jbe .next_item
+
 	xor eax, eax;set eax to zero to be prepared to do a clean exit
 	;check if the size is bigger than 2^31 -1, if so we found a suitable item
 	cmp dword [ds:si+8+4], 0
 	jne .fam_end
 
+	;check if this is the 14 MB usable memory between the BIOS and the ISA memory hole
+	cmp dword [ds:si+8], 0x00E00000;14MB size
+	jne .no_14MB
+	cmp dword [ds:si], 0x00100000;1MB start
+	jne .no_14MB
+	;if we are here then its the 14 MB usable memory section(it's too small and it's the only part usable by ISA)
+	;so we skip it
+	jmp .next_item
+
+.no_14MB:
 	;check the low part of the size
 	;if the size is bigger than the requested the we found a suitable item
 	cmp [ds:si+8], edx
@@ -96,4 +149,5 @@ kernel_load_data:
 	kernel_memory_error_msg db "cannot find suitable Extended RAM Memory(>1MB)", 13, 10, 0
 	kernel_start_cluster dd 0
 	kernel_size dd 0
-	memory_map_item_for_kernel_offset dw 0
+	memory_map_item_for_kernel_offset dd 0
+	kernel_image_address32 dd 0
