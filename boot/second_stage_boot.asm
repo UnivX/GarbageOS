@@ -214,8 +214,10 @@ bits 16
 	mov si, kernel_load_elf_good
 	call printc
 
-	;---TEMPORARY HANG---
-	jmp hang
+	;---SET UP FRAME ALLOCATOR
+	mov eax, [ds:first_frame_after_kernel_image]
+	mov ebx, [ds:memory_map_item_for_kernel_offset]
+	call init_frame_allocator
 
 	;---TRY LOAD 1024X768 32 DEPTH---
 	mov ax, 1024
@@ -233,21 +235,13 @@ bits 16
 	cmp ax, 0
 	je vbe_good
 	jmp vbe_mode_error
-
 vbe_good:
-	;---FILL SCREEN WITH WHITE---
-	mov bx, [ds:vbe_mode_info_struct]
-	mov ebx, [ds:bx+40];get_frame_buffer_address in 32 bit address
-	;write the first 12 bytes as 0xff(if 32 bit depth then 3 pixels, if 24 bit then 4 pixels)
-	mov edx, 1024*768
-	mov eax, [ds:vbe_bpp]
-	mul edx
+	mov cl, 0xff
+	call fill_screen_grey_scale
 
-write_vbe_mem:
-	mov byte [ds:ebx], 0xff
-	add ebx, 1
-	dec eax
-	jnz write_vbe_mem
+	;---TEST FRAME_ALLOCATOR---
+	call alloc_frame
+
 
 .true_loop:
 	jmp .true_loop
@@ -297,4 +291,5 @@ third_stage_libs:
 	%include "a20_enable.asm"
 	%include "nmi.asm"
 	%include "kernel_load.asm"
+	%include "frame_allocator.asm"
 END_OF_BOOTLOADER:

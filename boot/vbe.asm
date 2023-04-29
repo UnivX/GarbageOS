@@ -103,6 +103,32 @@ try_load_mode:
 	mov ax, [ds:vbe_temp_ret_value]
 	ret
 
+;cl = value to put in the buffer
+fill_screen_grey_scale:
+	push ebx
+	push edx
+	push eax
+	push ecx
+
+	mov bx, [ds:vbe_mode_info_struct]
+	mov ebx, [ds:bx+40];get_frame_buffer_address in 32 bit address
+	;write the first 12 bytes as 0xff(if 32 bit depth then 3 pixels, if 24 bit then 4 pixels)
+	mov edx, 1024*768
+	mov eax, [ds:vbe_bpp]
+	mul edx
+
+write_vbe_mem:
+	mov [ds:ebx], cl
+	add ebx, 1
+	dec eax
+	jnz write_vbe_mem
+
+	pop ecx
+	pop eax
+	pop edx
+	pop ebx
+	ret
+
 vbe_init_error:
 	xor ax, ax
 	mov es, ax

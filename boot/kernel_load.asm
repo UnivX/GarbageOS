@@ -57,6 +57,12 @@ load_kernel_image:
 	call load_file_in_memory
 	;TODO check that the file is correctly loaded in RAM
 
+	;calc the first frame(physical page) after the kernel
+	mov eax, [ds:kernel_image_address32]
+	add eax, [ds:kernel_size]
+	call ceil_eax_4k;round up to 4k
+	mov [ds:first_frame_after_kernel_image], eax
+
 	;clean return
 	mov eax, 0
 .end:
@@ -142,6 +148,19 @@ find_allocatable_memory:
 	pop ebx
 	ret
 
+ceil_eax_4k:
+	push bx
+	push eax
+	mov bx, sp
+	and eax, 4096-1
+	jz .ceil_done
+	sub dword [ss:bx], eax
+	add dword [ss:bx], 4096
+.ceil_done:
+	pop eax
+	pop bx
+	ret
+
 kernel_load_data:
 	kernel_temp_ret dd 0
 	kernel_file_name db "KRNL    BIN", 13, 10, 0
@@ -151,3 +170,4 @@ kernel_load_data:
 	kernel_size dd 0
 	memory_map_item_for_kernel_offset dd 0
 	kernel_image_address32 dd 0
+	first_frame_after_kernel_image dd 0
