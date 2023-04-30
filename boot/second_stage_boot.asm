@@ -238,10 +238,7 @@ bits 16
 vbe_good:
 	mov cl, 0xff
 	call fill_screen_grey_scale
-
-	;---TEST FRAME_ALLOCATOR---
-	call alloc_frame
-
+	jmp set_up_long_mode
 
 .true_loop:
 	jmp .true_loop
@@ -291,5 +288,6 @@ third_stage_libs:
 	%include "a20_enable.asm"
 	%include "nmi.asm"
 	%include "kernel_load.asm"
+	%include "long_mode.asm"
 	%include "frame_allocator.asm"
 END_OF_BOOTLOADER:

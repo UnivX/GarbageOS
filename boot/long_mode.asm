@@ -1,0 +1,143 @@
+bits 16
+set_up_long_mode:
+	cli
+	lgdt [protected_mode_gdtr]
+	mov eax, cr0
+	or al, 1 ;set Protection Enabled flag
+	mov cr0, eax
+	jmp 0x08:.protected_mode
+	call disable_nmi
+.protected_mode:
+	bits 32
+	; Reload data segment registers:
+	mov eax, 0x10
+	mov ds, eax
+	mov ss, eax
+	mov es, eax
+	mov fs, eax
+	mov gs, eax
+	mov cl, 64
+
+	;setup the paging for long mode
+	;page map level 4
+	call pmode_alloc_frame
+	mov [ds:pml4_physical_addr], eax
+	call pmode_zero_4k
+
+	;page directory pointer table
+	call pmode_alloc_frame
+	call pmode_zero_4k
+	;set the page directory pointer table as the frist entry for PML4
+	mov ebx, [ds:pml4_physical_addr]
+	mov [ds:ebx], eax
+	or byte [ds:ebx], 3;set page present bit and read/write bit
+	;save in ebx the PDPT
+	mov ebx, eax
+
+	;page directory table
+	call pmode_alloc_frame
+	call pmode_zero_4k
+	;set the page directory table as the first entry of the PDPT
+	mov [ds:ebx], eax
+	or byte [ds:ebx], 3
+	;save the PDT in ebx
+	mov ebx, eax
+
+	;page table
+	call pmode_alloc_frame
+	call pmode_zero_4k
+	;set the page table as the first entry of the PDT
+	mov [ds:ebx], eax
+	or byte [ds:ebx], 3
+	;save the page table address in eax
+	mov ebx, eax
+
+	;map the first MB
+	mov ecx, 256
+	mov eax, 3;0+the r/w bit and present bit
+.map_page:
+	mov dword [ds:ebx], eax
+	add eax, 4096
+	add ebx, 8;page table entry size
+	loop .map_page
+
+
+	; Enable PAE
+	mov edx, cr4
+	or edx, (1 << 5)
+	mov cr4, edx
+ 
+	; Set LME (long mode enable)
+	mov ecx, 0xC0000080
+	rdmsr
+	or eax, (1 << 8)
+	wrmsr
+
+	mov eax, [ds:pml4_physical_addr]
+	mov cr3, eax
+
+	;Enable paging
+	or ebx, (1 << 31)+1
+	mov cr0, ebx
+
+	;set the right gdt
+	lgdt [long_mode_gdtr]
+	mov ax, 0x10
+	mov ds, ax
+	mov ss, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
+	jmp 0x08:.long_mode
+.long_mode:
+	bits 64
+	;TODO make IDT stub
+	;TODO enable NMI
+
+.lmode_hang:
+	hlt
+	jmp .lmode_hang
+
+
+bits 32
+;eax -> in ptr
+pmode_zero_4k:
+	push ecx
+	push eax
+	mov ecx, 1024
+.write_zero:
+	mov dword [ds:eax], 0
+	add eax, 4
+	loop .write_zero
+	pop eax
+	pop ecx
+	ret
+
+
+
+protected_mode_gdt:
+	dq 0x0000000000000000;NULL
+	db 0xff, 0xff, 0, 0, 0, 10011010b, 11001111b, 0;code segment, 32bit mode
+	db 0xff, 0xff, 0, 0, 0, 10010010b, 11001111b, 0;data segment, 32bit mode
+protected_mode_gdt_end:
+
+protected_mode_gdtr:
+	dw protected_mode_gdt_end-protected_mode_gdt-1
+	dd protected_mode_gdt
+
+
+
+
+long_mode_gdt:
+	dq 0x0000000000000000;NULL
+	db 0xff, 0xff, 0, 0, 0, 10011010b, 10101111b, 0;code segment, 64bit mode
+	db 0xff, 0xff, 0, 0, 0, 10010010b, 10101111b, 0;data segment, 64bit mode
+long_mode_gdt_end:
+
+long_mode_gdtr:
+	dw long_mode_gdt_end-long_mode_gdt-1
+	dd long_mode_gdt
+
+pml4_physical_addr dq 0
+
+bits 16

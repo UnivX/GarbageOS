@@ -117,11 +117,11 @@ fill_screen_grey_scale:
 	mov eax, [ds:vbe_bpp]
 	mul edx
 
-write_vbe_mem:
+.write_vbe_mem:
 	mov [ds:ebx], cl
 	add ebx, 1
 	dec eax
-	jnz write_vbe_mem
+	jnz .write_vbe_mem
 
 	pop ecx
 	pop eax
