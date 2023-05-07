@@ -43,23 +43,25 @@ set_up_long_mode:
 	;save the PDT in ebx
 	mov ebx, eax
 
-	;page table
+	;map 1 GB of mem
+	mov edx, 3
+	mov ecx, 0
+.fill_PDT:
 	call pmode_alloc_frame
 	call pmode_zero_4k
-	;set the page table as the first entry of the PDT
-	mov [ds:ebx], eax
-	or byte [ds:ebx], 3
-	;save the page table address in eax
-	mov ebx, eax
-
-	;map the first MB
-	mov ecx, 256
-	mov eax, 3;0+the r/w bit and present bit
-.map_page:
-	mov dword [ds:ebx], eax
-	add eax, 4096
-	add ebx, 8;page table entry size
-	loop .map_page
+	mov [ebx+ecx*8], eax
+	push ecx
+	mov ecx, 512
+.fill_PT:
+	mov [ds:eax], edx
+	add edx, 4096
+	add eax, 8
+	loop .fill_PT
+	pop ecx
+	or byte [ebx+ecx*8], 3
+	inc ecx
+	cmp ecx, 512
+	jne .fill_PDT
 
 
 	; Enable PAE
@@ -91,6 +93,10 @@ set_up_long_mode:
 	jmp 0x08:.long_mode
 .long_mode:
 	bits 64
+	mov rax, 0x1000
+	mov rbx, 0x000000001000
+	call mmap
+	mov rax, 0xC0FFEBABE
 	;TODO make IDT stub
 	;TODO enable NMI
 
@@ -105,10 +111,10 @@ pmode_zero_4k:
 	push ecx
 	push eax
 	mov ecx, 1024
-.write_zero:
+.pwrite_zero:
 	mov dword [ds:eax], 0
 	add eax, 4
-	loop .write_zero
+	loop .pwrite_zero
 	pop eax
 	pop ecx
 	ret
@@ -139,5 +145,7 @@ long_mode_gdtr:
 	dd long_mode_gdt
 
 pml4_physical_addr dq 0
+
+%include "mmap.asm"
 
 bits 16
