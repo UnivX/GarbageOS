@@ -14,7 +14,7 @@ mmap:
 	;48 bit paging so we do not use the first 16 bit
 	;for other info search for 'canonical addresses in x86_64'
 	mov rcx, 0x0000fffffffff000
-	and rbx, rcx
+	and rax, rcx
 
 	;rdi=PML4 
 	mov rdx, rbx
@@ -54,6 +54,7 @@ mmap:
 	and rdx, rcx
 	mov [rdi+rdx*8], rax
 	or byte [rdi+rdx*8], 3
+	invlpg [rbx]
 	
 	pop rbx
 	pop rdi
