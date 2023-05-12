@@ -92,15 +92,18 @@ set_up_long_mode:
 	jmp 0x08:.long_mode
 .long_mode:
 	bits 64
-	mov rbx, 0xffffff8000000000
-	mov rax, rbx
-	call mmap
-
-	mov rax, 0xC0FFEBABE
 	;set the IDT limit to zero so if there is an NMI it will triple fault
 	lidt [fake_idtr]
 	call lmode_enable_nmi
 
+	;mmap test
+	mov rbx, 0xffffff8000000000
+	mov rax, rbx
+	call mmap
+
+	call load_elf
+
+	mov rax, 0xC0FFEBABE
 .lmode_hang:
 	hlt
 	jmp .lmode_hang
@@ -152,5 +155,6 @@ fake_idtr:
 pml4_physical_addr dq 0
 
 %include "mmap.asm"
+%include "elf.asm"
 
 bits 16

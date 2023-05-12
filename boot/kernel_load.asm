@@ -22,16 +22,6 @@ load_kernel_image:
 	cmp eax, 0
 	jnz .kernel_memory_error
 	mov [ds:memory_map_item_for_kernel_offset], si
-	;print address
-	mov eax, [ds:si]
-	call print_eax
-	mov si, newline
-	call printc
-	;print size
-	mov eax, [ds:si+8]
-	call print_eax
-	mov si, newline
-	call printc
 
 	;---SET THE ADDRESS WHERE TO LOAD THE KERNEL---
 	mov si, [ds:memory_map_item_for_kernel_offset]
@@ -51,6 +41,12 @@ load_kernel_image:
 	mov si, newline
 	call printc
 
+	;print the cluster where is loaded
+	mov eax, [ds:kernel_start_cluster]
+	call print_eax
+	mov si, newline
+	call printc
+
 	;LOAD FILE IN MEMORY no return value to controll
 	mov edi, [ds:kernel_image_address32]
 	mov eax, [ds:kernel_start_cluster]
@@ -60,6 +56,7 @@ load_kernel_image:
 	;calc the first frame(physical page) after the kernel
 	mov eax, [ds:kernel_image_address32]
 	add eax, [ds:kernel_size]
+	inc eax
 	call ceil_eax_4k;round up to 4k
 	mov [ds:first_frame_after_kernel_image], eax
 

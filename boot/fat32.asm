@@ -107,6 +107,7 @@ load_file_in_memory:
 	add ebx, 4
 	cmp ebx, [ds:fat32_sector_size]
 	jb .lfim_copy
+	add edi, [ds:fat32_sector_size]
 
 	pop eax
 	pop ebx
