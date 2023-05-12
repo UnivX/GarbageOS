@@ -327,6 +327,7 @@ void writeBootCode(FileImage& image, std::string boot_code_path){
 		image.readSector(sector_to_write, sector_buffer.get());
 
 		int size_of_data_to_write = code_size-code_offset;
+		assert(size_of_data_to_write > 0);
 		if(size_of_data_to_write > image.getSectorSize())
 			size_of_data_to_write = image.getSectorSize();
 

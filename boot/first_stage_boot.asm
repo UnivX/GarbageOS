@@ -77,6 +77,7 @@ load_entry:
 	mov si, new_line
 	call printc
 
+	;TODO: pass higher lba for full 64 bit lba offset of the partition
 	mov eax, [ds:dap_lower_lba]
 	mov dl, [ds:drive_number]
 	jmp 0000:VBR_ADDRESS
