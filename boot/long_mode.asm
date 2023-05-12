@@ -8,8 +8,7 @@ set_up_long_mode:
 	jmp 0x08:.protected_mode
 	call disable_nmi
 .protected_mode:
-	bits 32
-	; Reload data segment registers:
+	bits 32 ; Reload data segment registers:
 	mov eax, 0x10
 	mov ds, eax
 	mov ss, eax
@@ -93,9 +92,10 @@ set_up_long_mode:
 	jmp 0x08:.long_mode
 .long_mode:
 	bits 64
-	mov rax, 0x1000
-	mov rbx, 0x000000001000
+	mov rbx, 0xffffff8000000000
+	mov rax, rbx
 	call mmap
+
 	mov rax, 0xC0FFEBABE
 	;TODO make IDT stub
 	;TODO enable NMI
