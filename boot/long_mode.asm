@@ -97,8 +97,9 @@ set_up_long_mode:
 	call mmap
 
 	mov rax, 0xC0FFEBABE
-	;TODO make IDT stub
-	;TODO enable NMI
+	;set the IDT limit to zero so if there is an NMI it will triple fault
+	lidt [fake_idtr]
+	call lmode_enable_nmi
 
 .lmode_hang:
 	hlt
@@ -143,6 +144,10 @@ long_mode_gdt_end:
 long_mode_gdtr:
 	dw long_mode_gdt_end-long_mode_gdt-1
 	dd long_mode_gdt
+
+fake_idtr:
+	dq 0
+	dq 0
 
 pml4_physical_addr dq 0
 
