@@ -14,12 +14,13 @@ doesn't make sense to return from this function as the bootloader is gone.
 .type _start, @function
 _start:
 
+ 
+
 	mov $stack_top, %esp
 	call kmain
- 
 	cli
-1:	hlt
-	jmp 1b
+.h:	hlt
+	jmp .h
  
 /*
 Set the size of the _start symbol to the current location '.' minus its start.

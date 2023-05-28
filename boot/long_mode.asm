@@ -97,11 +97,13 @@ set_up_long_mode:
 	call lmode_enable_nmi
 
 	;mmap test
+	mov rcx, 2
 	mov rbx, 0xffffff8000000000
 	mov rax, rbx
 	call mmap
 
 	call load_elf
+	call call_kernel
 
 	mov rax, 0xC0FFEBABE
 .lmode_hang:

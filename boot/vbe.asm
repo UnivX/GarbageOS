@@ -115,14 +115,13 @@ fill_screen_grey_scale:
 	;write the first 12 bytes as 0xff(if 32 bit depth then 3 pixels, if 24 bit then 4 pixels)
 	mov edx, 1024*768
 	mov eax, [ds:vbe_bpp]
+	shr eax, 3
 	mul edx
-
 .write_vbe_mem:
 	mov [ds:ebx], cl
 	add ebx, 1
 	dec eax
 	jnz .write_vbe_mem
-
 	pop ecx
 	pop eax
 	pop edx
@@ -150,7 +149,7 @@ vbe_data:
 	vbe_init_error_msg db "VBE 2.0+ BIOS extension not supported", 13, 10, 0
 	vbe_error_bios_int_msg db "VBE error while using bios interrupt",13,10,0
 	vbe2_signature db "VESA"
-	vbe_bpp dw 0
+	vbe_bpp dd 0
 	vbe_width dw 0
 	vbe_height dw 0
 	vbe_temp_ret_value dw 0

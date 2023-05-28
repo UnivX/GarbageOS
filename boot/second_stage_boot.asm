@@ -219,6 +219,7 @@ bits 16
 	mov ebx, [ds:memory_map_item_for_kernel_offset]
 	call init_frame_allocator
 
+
 	;---TRY LOAD 1024X768 32 DEPTH---
 	mov ax, 1024
 	mov bx, 768

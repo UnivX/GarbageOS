@@ -1,3 +1,3 @@
 int kmain(){
-	return 0;
+	return 0xc0ffe;
 }

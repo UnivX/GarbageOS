@@ -1,11 +1,15 @@
 bits 64 
 ;in rax -> physical address
 ;in rbx -> virtual address
+;in rcx -> flags (2==write permission)
 mmap:
 	push rcx
 	push rdx
 	push rdi
 	push rbx
+
+	push rcx;save flags
+
 	mov rdi, cr3
 	and di, 0xf000
 	;rdi used to contain the page map table
@@ -53,7 +57,12 @@ mmap:
 	mov rcx, 0x1ff;9bit masking
 	and rdx, rcx
 	mov [rdi+rdx*8], rax
-	or byte [rdi+rdx*8], 3
+	or byte [rdi+rdx*8], 1;present flag
+
+	;retrive and set flags
+	pop rcx
+	or byte [rdi+rdx*8], cl
+
 	invlpg [rbx]
 	
 	pop rbx
