@@ -73,5 +73,6 @@ bits 16
 
 
 
+frame_allocator_data:
 memory_map_item_offset dd 0
 first_frame_address dd 0

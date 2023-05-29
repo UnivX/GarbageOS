@@ -153,7 +153,6 @@ load_segment:
 
 elf_load_err:
 	mov rdx, 0xBAAD0E1F
-	hlt
 	jmp elf_load_err
 
 ;rdi = destination
@@ -224,6 +223,11 @@ zero_mem:
 
 call_kernel:
 	mov rax, [kernel_entry_point]
+	xor rbx, rbx
+	mov bx, [vbe_mode_info_struct]
+	mov [0x0600], rbx
+	mov rbx, frame_allocator_data
+	mov [0x0608], rbx
 	jmp rax
 
 kernel_image_address64 dq 0

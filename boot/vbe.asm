@@ -144,8 +144,8 @@ vbe_bios_int_error:
 
 vbe_data:
 	vbe_buffer_offset dd 0
-	vbe_info_struct dd 0
-	vbe_mode_info_struct dd 0
+	vbe_info_struct dq 0
+	vbe_mode_info_struct dq 0
 	vbe_init_error_msg db "VBE 2.0+ BIOS extension not supported", 13, 10, 0
 	vbe_error_bios_int_msg db "VBE error while using bios interrupt",13,10,0
 	vbe2_signature db "VESA"

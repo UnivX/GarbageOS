@@ -13,11 +13,9 @@ doesn't make sense to return from this function as the bootloader is gone.
 .global _start
 .type _start, @function
 _start:
-
- 
-
 	mov $stack_top, %esp
 	call kmain
+	mov $0xc0ffebabe, %rcx
 	cli
 .h:	hlt
 	jmp .h
