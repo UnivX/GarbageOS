@@ -117,6 +117,7 @@ load_segment:
 	mov rbx, rdi
 	call lmode_alloc_frame;rax = frame
 	;rcx = flags, rbx= virtual addr, rax=frame
+	;NOTE: even if the page doesn't have write permission, ring0 processes can write to it since the WP bit in cr0 is set (by default)
 	call mmap
 
 	pop rbx

@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 typedef struct vbe_mode_info_structure {
 	uint16_t attributes;
@@ -40,4 +41,20 @@ typedef struct vbe_mode_info_structure {
 	uint8_t reserved1[206];
 } __attribute__ ((packed)) vbe_mode_info_structure;
 
-volatile vbe_mode_info_structure* getVBE();
+typedef struct vbe_frame_buffer{
+	void* vaddr;
+	void* paddr;
+	vbe_mode_info_structure* vbe_mode_info;
+} vbe_frame_buffer;
+
+typedef struct rbga_pixel{
+	uint8_t r;
+	uint8_t g;
+	uint8_t b;
+	uint8_t a;
+} __attribute__ ((packed)) rbga_pixel;
+
+/*if the size of the framebuffer is over the specified max_size_bytes of virtual mem space then it will return an invalid object*/
+vbe_frame_buffer init_frame_buffer(void* virtual_address, uint64_t max_size_bytes);
+void fill_screen(vbe_frame_buffer framebuffer, rbga_pixel color);
+bool is_frame_buffer_valid(vbe_frame_buffer framebuffer);

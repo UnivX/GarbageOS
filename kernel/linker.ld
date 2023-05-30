@@ -23,6 +23,11 @@ SECTIONS
 	{
 		*(.rodata)
 	}
+
+	.rdata BLOCK(4K) : ALIGN(4K)
+	{
+		*(.rdata)
+	}
  
 	/* Read-write data (initialized) */
 	.data BLOCK(4K) : ALIGN(4K)
