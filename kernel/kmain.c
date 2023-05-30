@@ -100,6 +100,7 @@ void mmap(volatile void* vaddr, volatile void* paddr, uint8_t flags){
 
 uint64_t kmain(){
 	//test
+	//map the linear frame buffer
 	mmap((void*)0xffffff8800000000, (void*)0, PAGE_WRITABLE);
 	return 0;
 }
