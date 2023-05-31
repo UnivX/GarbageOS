@@ -3,7 +3,7 @@
 volatile void* boot_data = (void*)0x600;
 
 void* early_frame_alloc(){
-	volatile frame_data* fdata = *(frame_data**)(boot_data+8);
+	frame_data* fdata = *(frame_data**)(boot_data+8);
 	//always use the local version of the (local_)first_frame_address
 	//that it's extended to 64 bit
 	static uint64_t first_frame_address_local = 0;
@@ -11,7 +11,7 @@ void* early_frame_alloc(){
 		first_frame_address_local = (uint64_t)(fdata->first_frame_address);
 	}
 
-	volatile memory_map_item* map_item = (memory_map_item*)((uint64_t)fdata->memory_map_item_offset);
+	memory_map_item* map_item = (memory_map_item*)((uint64_t)fdata->memory_map_item_offset);
 	if(first_frame_address_local+PAGE_SIZE >= map_item->base_addr+map_item->size){
 		kpanic(FRAME_ALLOCATOR_ERROR);
 		return NULL;

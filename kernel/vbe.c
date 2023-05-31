@@ -38,7 +38,7 @@ void fill_screen(vbe_frame_buffer framebuffer, rbga_pixel color){
 	uint64_t pixel_count = framebuffer.vbe_mode_info->height*framebuffer.vbe_mode_info->width;
 	if(framebuffer.vbe_mode_info->bpp == 24){
 		//rgb encoding 8 bit each
-		uint8_t* dest_addr = (uint8_t*)framebuffer.vaddr;
+		volatile uint8_t* dest_addr = (volatile uint8_t*)framebuffer.vaddr;
 		for(int i = 0; i < pixel_count; i++){
 			*dest_addr = color.b;
 			dest_addr++;
@@ -49,7 +49,7 @@ void fill_screen(vbe_frame_buffer framebuffer, rbga_pixel color){
 		}
 	}else if(framebuffer.vbe_mode_info->bpp == 32){
 		//rgba encoding 8 bit each
-		uint8_t* dest_addr = (uint8_t*)framebuffer.vaddr;
+		volatile uint8_t* dest_addr = (volatile uint8_t*)framebuffer.vaddr;
 		for(int i = 0; i < pixel_count; i++){
 			*dest_addr = color.b;
 			dest_addr++;
