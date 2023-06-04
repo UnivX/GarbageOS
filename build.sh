@@ -1,34 +1,21 @@
-cd boot
-sh ./build.sh
-cd ..
-
-cd kernel
-sh ./build.sh
-cd ..
-
-#compile the tools only if needed
-MBR_MAKER_FILE="tools/mbr_maker.out"
-if [ ! -f "$MBR_MAKER_FILE" ]
-then
-	cd tools
-	sh ./build.sh
-	cd ..
+if ! [ $(id -u) = 0 ]; then
+   echo "run this as root" >&2
+   exit 1
 fi
 
-if [ ! -f "build/iso" ]
-then
-	mkdir build
-	mkdir build/iso
+if [ $SUDO_USER ]; then
+    real_user=$SUDO_USER
+else
+    real_user=$(whoami)
 fi
 
-SIZE=71520
-./tools/mbr_maker.out build/bootable.iso "$SIZE" boot/first_stage_boot.bin 
-./tools/fat32_maker.out volume_size="$SIZE" file=build/bootable.iso file_offset=1 boot_code=boot/second_stage_boot.bin
+#run the sub_build script without root privileges
+sudo -u $real_user sh sub_build.sh
 
-sudo mount -t vfat -o loop,offset=512 build/bootable.iso build/iso
-sudo mkdir build/iso/sys/
-sudo cp kernel/krnl.bin build/iso/sys
+mount -t vfat -o loop,offset=512 build/bootable.iso build/iso
+mkdir build/iso/sys/
+cp kernel/krnl.bin build/iso/sys
 cd build/iso/sys
-sudo echo 'this message is being printed from a file as a test' > t.txt
+echo 'this message is being printed from a file as a test' > t.txt
 cd ../../../
-sudo umount build/iso
+umount build/iso

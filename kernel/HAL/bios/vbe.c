@@ -1,15 +1,16 @@
 #include <stddef.h>
 #include "vbe.h"
-#include "memory.h"
-#include "misc.h"
+#include "../../memory.h"
+#include "../../hal.h"
+#include "../../kdefs.h"
 
-vbe_frame_buffer init_frame_buffer(void* virtual_address, uint64_t max_size_bytes){
+VbeFrameBuffer init_frame_buffer(void* virtual_address, uint64_t max_size_bytes){
 	if(virtual_address == NULL)
 		kpanic(VBE_ERROR);
 
-	vbe_frame_buffer invalid_buffer = {NULL, NULL, NULL};
-	vbe_frame_buffer framebuffer;
-	framebuffer.vbe_mode_info =  *(vbe_mode_info_structure**)(0x0600);
+	VbeFrameBuffer invalid_buffer = {NULL, NULL, NULL};
+	VbeFrameBuffer framebuffer;
+	framebuffer.vbe_mode_info =  get_bootloader_data()->vbe_mode_info;
 	framebuffer.vaddr = virtual_address;
 	framebuffer.paddr = (void*)((uint64_t)framebuffer.vbe_mode_info->framebuffer);
 
@@ -27,11 +28,11 @@ vbe_frame_buffer init_frame_buffer(void* virtual_address, uint64_t max_size_byte
 	return framebuffer;
 }
 
-bool is_frame_buffer_valid(vbe_frame_buffer framebuffer){
+bool is_frame_buffer_valid(VbeFrameBuffer framebuffer){
 	return !(framebuffer.paddr == NULL || framebuffer.vaddr == NULL || framebuffer.vbe_mode_info == NULL);
 }
 
-void fill_screen(vbe_frame_buffer framebuffer, rbga_pixel color){
+void fill_screen(VbeFrameBuffer framebuffer, RGBAPixel color){
 	if(!is_frame_buffer_valid(framebuffer))
 		kpanic(VBE_ERROR);
 

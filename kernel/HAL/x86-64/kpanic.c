@@ -1,4 +1,4 @@
-#include "misc.h"
+#include "../../hal.h"
 
 void kpanic(volatile uint64_t error_code){
 	//put in rax and rbx the error_code, rcx=0xdeadbeef

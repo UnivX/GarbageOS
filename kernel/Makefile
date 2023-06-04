@@ -5,22 +5,35 @@ CFLAGS =-mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -std=gnu99 -ffr
 LINKERFLAGS = -T linker.ld -ffreestanding -O2 -nostdlib -lgcc
 
 EXEC = krnl.bin
-OBJS = kmain.o vbe.o early_kmain.o memory.o misc.o
 
- 
+ARCH = x86-64
+FIRMWARE_SUBSYS = bios
 
-${EXEC}: ${OBJS}
+CSRC = $(shell find $(SOURCEDIR) -name '*.c')
+SSRC = $(shell find $(SOURCEDIR) -name '*.s')
+
+OBJDIR := obj
+COBJS = $(CSRC:.c=.o)
+SOBJS = $(SSRC:.s=.o)
+OBJS = $(addprefix ${OBJDIR}/, ${COBJS}) $(addprefix ${OBJDIR}/, ${SOBJS})
+
+${EXEC}: ${OBJDIR} ${OBJS}
 	${CC} ${LINKERFLAGS} ${OBJS} -o ${EXEC}
 	objcopy --only-keep-debug ${EXEC} krnl.sym
 	objcopy --strip-debug ${EXEC}
 
-%.o : %.c
-	@echo "compiling $< ..."
-	${CC} ${CFLAGS} -c -o $@ $<
+${OBJDIR}/%.o : %.c
+	@mkdir -p $(@D)
+	${CC} ${CFLAGS} -c $< -o $@
 
-%.o : %.s
-	@echo "compiling $< ..."
+${OBJDIR}/%.o : %.s
+	@mkdir -p $(@D)
 	${AS} -o $@ $<
 
+$(OBJS): | $(OBJDIR)
+
+${OBJDIR}:
+	mkdir ${OBJDIR}
+
 clean:
-	rm ${OBJS} ${EXEC} krnl.sym
+	rm ${EXEC} ${OBJS} krnl.sym

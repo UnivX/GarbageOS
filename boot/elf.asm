@@ -223,12 +223,23 @@ zero_mem:
 	ret
 
 call_kernel:
-	mov rax, [kernel_entry_point]
 	xor rbx, rbx
 	mov bx, [vbe_mode_info_struct]
-	mov [0x0600], rbx
+	mov [exp_vbe_mode_info_s_ptr], rbx
+
 	mov rbx, frame_allocator_data
-	mov [0x0608], rbx
+	mov [exp_frame_allocator_data_ptr], rbx
+
+	xor rbx, rbx
+	mov bx, [memory_map_offset]
+	mov [exp_memory_map_size_ptr], rbx
+	add rbx, 8
+	mov [exp_memory_map_arr_ptr], rbx
+
+	mov rbx, bootloader_exported_data
+	mov [0x0600], rbx
+
+	mov rax, [kernel_entry_point]
 	jmp rax
 
 kernel_image_address64 dq 0
@@ -236,3 +247,10 @@ kernel_entry_point dq 0
 program_header_offset dq 0
 program_header_entry_size dw 0
 program_header_entries_number dw 0
+
+bootloader_exported_data:
+exp_magic_number dq 0xf3f0
+exp_vbe_mode_info_s_ptr dq 0
+exp_frame_allocator_data_ptr dq 0
+exp_memory_map_size_ptr dq 0
+exp_memory_map_arr_ptr dq 0
