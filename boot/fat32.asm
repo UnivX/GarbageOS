@@ -126,6 +126,8 @@ load_file_in_memory:
 	cmp eax, FAT32_END_OF_CHAIN
 	jb .lfim_parse_cluster
 
+	sti
+	hlt
 	popa
 	ret
 

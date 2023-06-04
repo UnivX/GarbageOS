@@ -120,6 +120,7 @@ third_stage_entry:
 	call enable_a20
 	call disable_nmi
 
+	push ds
 	;load gdt
 	lgdt [unreal_gdtr]
 	mov si, gdt_loaded
@@ -132,7 +133,8 @@ third_stage_entry:
 	jmp 08h:protected_mode
 
 protected_mode:
-bits 32
+;it doesn't work with bits 32?????
+;bits 32
 	;now we will load the segment descriptor for the kernel data
 	;the CPU will load in the segment cache the options, after we return to real mode
 	;the cache will remain unaffected and we will be able to write
@@ -147,12 +149,12 @@ bits 32
 
 	and al, 0xFE ;clear PE(Protection Enable)
 	mov cr0, eax
+
 	jmp 0x0:unreal_mode
 
 unreal_mode:
 bits 16
-	xor ax, ax
-	mov ds, ax
+	pop ds
 
 	call enable_nmi
 
