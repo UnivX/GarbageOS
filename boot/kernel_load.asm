@@ -18,6 +18,7 @@ load_kernel_image:
 
 	;---FIND MEMORY AFTER 1MB---
 	mov edx, [ds:kernel_size]
+	add edx, 0x00800000;8MB of extra space
 	call find_allocatable_memory
 	cmp eax, 0
 	jnz .kernel_memory_error
@@ -26,11 +27,6 @@ load_kernel_image:
 	;---SET THE ADDRESS WHERE TO LOAD THE KERNEL---
 	mov si, [ds:memory_map_item_for_kernel_offset]
 	mov eax, [ds:si] ;address 32bit
-	;if its not after 16MB
-	cmp eax, 0x01000000;16MB
-	ja .set_kernel_address
-	mov eax, 0x01000000;16MB
-.set_kernel_address:
 	mov [ds:kernel_image_address32], eax
 	;if the address is below 16MB the set it at 16MB
 	;TODO check if the memory is enough

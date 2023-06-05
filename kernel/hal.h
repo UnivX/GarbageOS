@@ -45,6 +45,7 @@ bool is_hal_arch_initialized();
 FreePhysicalMemoryStruct free_mem_bootloader();
 //return the last address for the last usable register size chunk of data
 uint64_t get_last_address();
+uint64_t get_total_usable_RAM_size();
 //return a range of identity mapped address set up by the bootloader
 PhysicalMemoryRange get_bootstage_indentity_mapped_RAM();
 

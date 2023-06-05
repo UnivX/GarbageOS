@@ -51,10 +51,6 @@ FreePhysicalMemoryStruct free_mem_bootloader(){
 	uint32_t frame_alloc_memory_map_offset = boot_data->frame_allocator_data->memory_map_item_offset;
 	MemoryMapItem* frame_alloc_map_item = (MemoryMapItem*)((uint64_t)frame_alloc_memory_map_offset);
 
-	uint64_t bootloader_frame_alloc_start = MIN_BOOT_FRAME_ALLOC_ADDR;
-	if(bootloader_frame_alloc_start < frame_alloc_map_item->base_addr)
-		bootloader_frame_alloc_start = frame_alloc_map_item->base_addr;
-
 	for(int i = 0; i < next_range; i++){
 		//NOTE: since the bootloader use only a single range of free memory we need to fix only that one
 		if(frame_alloc_map_item->base_addr == free_range_buffer[i].start_address){
@@ -87,6 +83,18 @@ FreePhysicalMemoryStruct free_mem_bootloader(){
 	return free_memory;
 }
 
+
+uint64_t get_total_usable_RAM_size(){
+	uint64_t total = 0;
+	BootLoaderData* boot_data = get_bootloader_data();
+	MemoryMapItem* map_items = boot_data->map_items;
+	for(uint32_t i = 0; i < *boot_data->map_items_count; i++){
+		if(map_items[i].type == MEMORY_MAP_FREE && map_items[i].size != 0){
+			total += map_items[i].size;
+		}
+	}
+	return total;
+}
 
 uint64_t get_last_address(){
 	uint64_t last_addr = 0;
