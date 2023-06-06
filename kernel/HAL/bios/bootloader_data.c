@@ -71,10 +71,24 @@ FreePhysicalMemoryStruct free_mem_bootloader(){
 				//if the range is contained in the first 1MB then set its size to zero
 				free_range_buffer[i].size = 0;
 			}
-			free_range_buffer[i].size -= boot_data->frame_allocator_data->first_frame_address-free_range_buffer[i].start_address;
-			free_range_buffer[i].start_address = boot_data->frame_allocator_data->first_frame_address;
 		}
 	}
+
+	//align to 4k
+	for(int i = 0; i < next_range; i++){
+		if(free_range_buffer[i].size == 0) continue;
+		//if the start address it's not aligned round it up to next page
+		if(free_range_buffer[i].start_address % PAGE_SIZE != 0){
+			uint64_t to_add = -(free_range_buffer[i].start_address % PAGE_SIZE) + PAGE_SIZE;
+			free_range_buffer[i].start_address += to_add;
+			free_range_buffer[i].size -= to_add;
+		}
+		//if the size is not aligned round it down
+		if(free_range_buffer[i].size % PAGE_SIZE != 0){
+			free_range_buffer[i].size -= free_range_buffer[i].size % PAGE_SIZE;
+		}
+	}
+	
 	
 	FreePhysicalMemoryStruct free_memory;
 	free_memory.free_ranges = free_range_buffer;
