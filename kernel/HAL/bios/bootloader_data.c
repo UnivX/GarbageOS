@@ -116,7 +116,7 @@ uint64_t get_last_address(){
 	BootLoaderData* boot_data = get_bootloader_data();
 	MemoryMapItem* map_items = boot_data->map_items;
 
-	for(int i = 0; i < *boot_data->map_items_count; i++){
+	for(uint32_t i = 0; i < *boot_data->map_items_count; i++){
 		//if its valid
 		if(map_items[i].size != 0){
 			uint64_t map_item_last_addr = map_items[i].base_addr + map_items[i].size-REGISTER_SIZE_BYTES;

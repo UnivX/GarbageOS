@@ -40,7 +40,7 @@ void fill_screen(VbeFrameBuffer framebuffer, RGBAPixel color){
 	if(framebuffer.vbe_mode_info->bpp == 24){
 		//rgb encoding 8 bit each
 		volatile uint8_t* dest_addr = (volatile uint8_t*)framebuffer.vaddr;
-		for(int i = 0; i < pixel_count; i++){
+		for(uint64_t i = 0; i < pixel_count; i++){
 			*dest_addr = color.b;
 			dest_addr++;
 			*dest_addr = color.g;
@@ -51,7 +51,7 @@ void fill_screen(VbeFrameBuffer framebuffer, RGBAPixel color){
 	}else if(framebuffer.vbe_mode_info->bpp == 32){
 		//rgba encoding 8 bit each
 		volatile uint8_t* dest_addr = (volatile uint8_t*)framebuffer.vaddr;
-		for(int i = 0; i < pixel_count; i++){
+		for(uint64_t i = 0; i < pixel_count; i++){
 			*dest_addr = color.b;
 			dest_addr++;
 			*dest_addr = color.g;

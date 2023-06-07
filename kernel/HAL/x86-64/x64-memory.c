@@ -130,7 +130,7 @@ void identity_map_memory(){
 	for(size_t i = 0; i < memory.number_of_ranges; i++){
 		uint64_t start_addr = memory.free_ranges[i].start_address;
 		uint64_t pages = memory.free_ranges[i].size / PAGE_SIZE;
-		for(int j = 0; j < pages; j++){
+		for(uint64_t j = 0; j < pages; j++){
 			uint64_t paddr_i = start_addr + (j*PAGE_SIZE);
 			mmap((void*)paddr_i, (void*)paddr_i, PAGE_WRITABLE);
 		}

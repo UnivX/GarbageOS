@@ -8,6 +8,8 @@
 uint64_t kmain(){
 	//test
 	init_frame_allocator();
-	//set_up_arch_layer();
+	set_up_firmware_layer();
+	set_up_arch_layer();
+	
 	return get_bootloader_data()->vbe_mode_info->bpp;
 }

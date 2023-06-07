@@ -69,6 +69,7 @@ PagingMapState get_physical_address(volatile void* vaddr);
 //every call made to the HAL with the exception of kpanic
 //must be made after this function call
 void set_up_arch_layer();
+void set_up_firmware_layer();
 bool is_hal_arch_initialized();
 
 /*return a sorted array of free physical memory ranges aligned to the PAGE_SIZE
