@@ -2,7 +2,7 @@ CROSS_PATH=$${HOME}/cross/bin
 CC=${CROSS_PATH}/x86_64-elf-gcc
 AS=${CROSS_PATH}/x86_64-elf-as
 CFLAGS =-mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -std=gnu99 -ffreestanding -Wall -Wextra -g
-LINKERFLAGS = -T linker.ld -ffreestanding -nostdlib -lgcc
+LINKERFLAGS = -T linker.ld -ffreestanding -nostdlib -lgcc -no-pie
 
 EXEC = krnl.bin
 
@@ -17,10 +17,14 @@ COBJS = $(CSRC:.c=.o)
 SOBJS = $(SSRC:.s=.o)
 OBJS = $(addprefix ${OBJDIR}/, ${COBJS}) $(addprefix ${OBJDIR}/, ${SOBJS})
 
+FONTFILE := font/Tamsyn10x20r.psf
+
 ${EXEC}: ${OBJDIR} ${OBJS}
-	${CC} ${LINKERFLAGS} ${OBJS} -o ${EXEC}
+	ld -r -b binary -o ${OBJDIR}/font.o ${FONTFILE}
+	${CC} ${LINKERFLAGS} ${OBJS} ${OBJDIR}/font.o -o ${EXEC}
 	objcopy --only-keep-debug ${EXEC} krnl.sym
 	objcopy --strip-debug ${EXEC}
+
 
 ${OBJDIR}/%.o : %.c
 	@mkdir -p $(@D)

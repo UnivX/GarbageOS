@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "display_interface.h"
 
 /* HAL dependencies:
  * frame_allocator.h - it must implement an error if called before the initialization
@@ -83,4 +84,4 @@ uint64_t get_total_usable_RAM_size();
 //return a range of identity mapped address set up by the bootloader
 PhysicalMemoryRange get_bootstage_indentity_mapped_RAM();
 
-
+DisplayInterface get_firmware_display();
