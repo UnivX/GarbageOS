@@ -62,7 +62,7 @@ bool write_PSF_char(PSFFont font, unsigned char c, Vector2i position, Pixel buff
 		unicode = font.ascii_table[c];
 	}
 	uint8_t *glyph = (uint8_t*)font.header+ font.header->headersize + unicode*font.header->bytesperglyph;
-	uint64_t display_offset = position.y * buffer_size.x + position.y;
+	uint64_t display_offset = position.y * buffer_size.x + position.x;
 
 	for(uint32_t y = 0; y < font.header->height; y++){
 		for(uint32_t x = 0; x < font.header->width; x++){

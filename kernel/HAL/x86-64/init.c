@@ -1,6 +1,6 @@
 #include "../../hal.h"
 #include "x64-memory.h"
-bool is_initialized = false;
+static bool is_initialized = false;
 
 void set_up_arch_layer(){
 	identity_map_memory();
