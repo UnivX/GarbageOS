@@ -1,10 +1,18 @@
 #pragma once
-#include "display_interface.h"
 #include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include "display_interface.h"
+#include "kdefs.h"
+#include "hal.h"
 
-//font
-extern const uint8_t _binary_font_Tamsyn10x20r_psf_start[];
-extern const uint8_t _binary_font_Tamsyn10x20r_psf_end[];
+typedef struct KioState{
+	bool is_initialized;
+	DisplayInterface display;
+} KioState;
 
-//TODO
-//void init_kio(DisplayInterface display);
+//the display interface needs to be initialized
+//the display will be finalized during the
+//finalize_kio() function
+void init_kio(DisplayInterface display);
+void finalize_kio();

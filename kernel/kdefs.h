@@ -15,4 +15,13 @@ enum ErrorCodes{
 	FRAME_ALLOCATOR_ERROR = 1,
 	VBE_ERROR = 2,
 	FREE_MEM_BOOTLOADER_ERROR = 3,
+	KIO_ERROR = 4,
+	FAILED_ASSERT = 5
 };
+
+//a bidimensional integer vector
+typedef struct Vector2i{
+	int64_t x, y;
+} Vector2i;
+
+#define KASSERT(x) if(!(x)) kpanic(FAILED_ASSERT);
