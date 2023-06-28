@@ -2,8 +2,16 @@
 #include <stdint.h>
 
 typedef struct Pixel{
+	uint8_t b,g,r,a;
+} __attribute__((packed)) Pixel;
+
+
+typedef struct Color{
 	uint8_t r,g,b,a;
-} Pixel;
+} __attribute__((packed)) Color;
+
+Pixel color_to_pixel(Color c);
+Color pixel_to_color(Pixel p);
 
 typedef enum DisplayType{
 	VBE_DISPLAY

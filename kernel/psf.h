@@ -33,4 +33,4 @@ typedef struct PSFFont {
 
 PSFFont get_default_PSF_font();
 bool write_PSF_char(PSFFont font, unsigned char c, Vector2i position, Pixel buffer[], Vector2i buffer_size,
-		Pixel background_color, Pixel font_color);
+		Color background_color, Color font_color);

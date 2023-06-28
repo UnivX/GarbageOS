@@ -64,6 +64,7 @@ void write_pixels_vbe_display(Pixel pixels[], uint64_t size){
 		}
 	}else if(global_frame_buffer.vbe_mode_info->bpp == 32){
 		//rgba encoding 8 bit each
+		/*
 		volatile uint8_t* dest_addr = (volatile uint8_t*)global_frame_buffer.vaddr;
 		for(uint64_t i = 0; i < pixel_count; i++){
 			*dest_addr = pixels[i].b;
@@ -74,6 +75,11 @@ void write_pixels_vbe_display(Pixel pixels[], uint64_t size){
 			dest_addr++;
 			*dest_addr = pixels[i].a;
 			dest_addr++;
+		}
+		*/
+		volatile Pixel* dest_addr = (volatile Pixel*)global_frame_buffer.vaddr;
+		for(int i = 0; i < pixel_count; i++){
+			dest_addr[i] = pixels[i];
 		}
 	}else{
 		kpanic(VBE_ERROR);
