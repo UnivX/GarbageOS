@@ -12,6 +12,7 @@
 typedef struct KioState{
 	DisplayInterface display;
 	uint64_t next_x, next_y;
+	uint64_t screen_size;
 	Color background_color, font_color;
 	PSFFont font;
 	Pixel buffer[BUFFER_SIZE];
@@ -24,4 +25,5 @@ void init_kio(DisplayInterface display, PSFFont font, Color background_color, Co
 void putchar(char c, bool flush);
 void print(char* str);
 void print_uint64_hex(uint64_t n);
+void print_uint64_dec(uint64_t n);
 void finalize_kio();

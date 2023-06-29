@@ -21,11 +21,10 @@ uint64_t kmain(){
 	Color font_color = {0,255,0,255};
 	PSFFont font = get_default_PSF_font();
 	init_kio(display, font, background_color, font_color);
-
-	print("Hello World\nI'm a kernel\n");
-	for(char c = 'A'; c <= 'Z'; c++)
-		for(int i = 0; i < 2000; i++)
-			putchar(c, true);
+	for(int i = 0; i < 100; i++){
+		print_uint64_dec(i);
+		print(" - I'm a kernel\n");
+	}
 
 	return 0;
 }

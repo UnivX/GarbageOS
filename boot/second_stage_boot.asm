@@ -221,6 +221,14 @@ bits 16
 	mov ebx, [ds:memory_map_item_for_kernel_offset]
 	call init_frame_allocator
 
+	;---TRY LOAD 720X480
+	mov ax, 640
+	mov bx, 480
+	mov cx, 32
+	call try_load_mode
+	cmp ax, 0
+	je vbe_good
+
 
 	;---TRY LOAD 1024X768 32 DEPTH---
 	mov ax, 1024
