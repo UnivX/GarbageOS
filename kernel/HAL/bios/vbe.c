@@ -25,7 +25,7 @@ VbeFrameBuffer init_frame_buffer(void* virtual_address, uint64_t max_size_bytes)
 	for(uint64_t i = 0; i < pages_count; i++){
 		void* vaddr_to_map = (void*)(framebuffer.vaddr+(i*PAGE_SIZE));
 		void* paddr_to_map = (void*)(framebuffer.paddr+(i*PAGE_SIZE));
-		mmap(vaddr_to_map, paddr_to_map, PAGE_WRITABLE | PAGE_PRESENT | PAGE_CACHE_DISABLE);
+		mmap(vaddr_to_map, paddr_to_map, PAGE_WRITABLE | PAGE_PRESENT | PAGE_WRITE_THROUGH);
 	}
 	return framebuffer;
 }

@@ -30,6 +30,10 @@ typedef struct GDTR{
 #define CONFORMING 1 << 2
 #define READ_WRITE 1 << 1
 
+#define TYPE_TSS_AVAIBLE 0x9
+#define TYPE_TSS_BUSY 0xB
+#define TYPE_LDT 0x2
+
 GDT make_gdt(uint64_t base, uint32_t limit, uint8_t flags, uint8_t access);
 
 void load_gdt(GDT* gdt, uint16_t size);

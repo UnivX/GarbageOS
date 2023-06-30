@@ -3,6 +3,10 @@
 #include "../../memory.h"
 #include "../../frame_allocator.h"
 
+inline void memory_fence(){
+	asm volatile("mfence");
+}
+
 /*get the page table entry relative to the virtual address
  *Paging structure:
  *PML4[512] -> PDPT[512] -> PDT[512] -> PT[512]
@@ -18,7 +22,7 @@ uint64_t* get_page_table_entry(volatile void* vaddr){
 
 	//get cr3
 	uint64_t cr3;
-	asm("mov %%cr3, %0" : "=r"(cr3));
+	asm("mov %%cr3, %0" : "=r"(cr3) : : "cc");
 	cr3 &= 0xfffffffffffff000;
 
 	uint64_t* PML4 = (uint64_t*)cr3;
@@ -46,7 +50,8 @@ uint64_t* get_page_table_entry(volatile void* vaddr){
 }
 
 //ivalidate the MMU cache of relative to the virtual address received as parameter
-void invalidate_TLB(volatile void* vaddr){
+inline void invalidate_TLB(volatile void* vaddr){
+	memory_fence();
 	asm("invlpg (%0)" : : "r"(vaddr));
 }
 

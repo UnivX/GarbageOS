@@ -87,3 +87,5 @@ uint64_t get_total_usable_RAM_size();
 PhysicalMemoryRange get_bootstage_indentity_mapped_RAM();
 
 DisplayInterface get_firmware_display();
+
+void memory_fence();

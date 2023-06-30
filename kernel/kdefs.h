@@ -2,13 +2,21 @@
 #include <stdint.h>
 
 /*BYTES MUL*/
-#define KB 1024
-#define MB 1024*1024
+#define KB ((uint64_t)1024)
+#define MB ((uint64_t)1024*1024)
 #define GB MB*KB
 #define TB GB*KB
 
+#define KERNEL_VADDR (void*)0xffffc00000000000
+
 #define VBE_VADDR (void*)0xffff800000000000
 #define VBE_VADDR_SIZE 1*GB
+
+#define KERNEL_ADDITIONAL_STACKS_VADDR (void*)0xffff900000000000
+#define KERNEL_ADDITIONAL_STACK_SIZE 2*GB
+
+#define INTERRUPT_STACK_SIZE 64*KB
+#define SYSTEM_CALL_STACK_SIZE 64*KB
 
 /*GENERAL ERROR CODES used in KPANIC*/
 enum ErrorCodes{
