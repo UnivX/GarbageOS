@@ -1,7 +1,5 @@
 #include "gdt.h"
-extern void _gdt_flush();
-
-void* _global_gdtr;
+extern void _gdt_flush(GDTR*);
 
 GDT make_gdt(uint64_t base, uint32_t limit, uint8_t flags, uint8_t access){
 	KASSERT(sizeof(GDT) == 16);
@@ -17,11 +15,9 @@ GDT make_gdt(uint64_t base, uint32_t limit, uint8_t flags, uint8_t access){
 	return result;
 }
 
-GDTR gdtr;
-void load_gdt(GDT* gdt, uint16_t size){
+void load_gdt(GDT* gdt, uint16_t size, GDTR* gdtr){
 	uint64_t gdt_ptr = (uint64_t)gdt;
-	gdtr.gdt = gdt_ptr;
-	gdtr.size = size*sizeof(GDT)-1;
-	_global_gdtr = &gdtr;
-	_gdt_flush();
+	gdtr->gdt = gdt_ptr;
+	gdtr->size = size*sizeof(GDT)-1;
+	_gdt_flush(gdtr);
 }

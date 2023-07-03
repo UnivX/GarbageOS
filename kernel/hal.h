@@ -19,8 +19,7 @@
  * HAL arch specific defines
  */
 /*--------------x86-64 + BIOS default defines--------------*/
-/*paging common flags*/
-#define PAGE_PRESENT 1
+/*paging common flags*/ #define PAGE_PRESENT 1
 #define PAGE_WRITABLE 2
 #define PAGE_CACHE_DISABLE (1 << 4)
 #define PAGE_WRITE_THROUGH (1 << 3)
@@ -98,3 +97,7 @@ uint32_t inl(uint16_t port);
 void outb(uint16_t port, uint8_t data);
 void outw(uint16_t port, uint16_t data);
 void outl(uint16_t port, uint32_t data);
+
+void enable_interrupts();
+void disable_interrupts();
+void halt();

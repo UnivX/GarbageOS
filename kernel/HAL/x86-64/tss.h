@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 #include "../../memory.h"
 #include "../../kdefs.h"
@@ -5,10 +6,11 @@
 
 
 typedef struct TSS{
+	uint32_t reserved0;
 	void* rsp0;
 	void* rsp1;
 	void* rsp2;
-	uint64_t reserved0;
+	uint64_t reserved1;
 	void* ist1;
 	void* ist2;
 	void* ist3;
@@ -16,8 +18,8 @@ typedef struct TSS{
 	void* ist5;
 	void* ist6;
 	void* ist7;
-	uint64_t reserved1;
-	uint16_t reserved2;
+	uint64_t reserved2;
+	uint16_t reserved3;
 	uint16_t iopb;
 }__attribute__((packed)) TSS;
 

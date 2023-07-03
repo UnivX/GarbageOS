@@ -36,3 +36,16 @@ inline void outl(uint16_t port, uint32_t data){
 inline void io_wait(){
 	outb(0x80, 0);
 }
+
+inline void enable_interrupts(){
+	asm volatile("sti");
+}
+
+inline void disable_interrupts(){
+	asm volatile("cli");
+}
+
+inline void halt(){
+	disable_interrupts();
+	asm volatile(".halt: hlt\n jmp .halt");
+}

@@ -1,10 +1,7 @@
-.extern _global_gdtr
 .global _gdt_flush 
 
 _gdt_flush:
-	nop
-	movabs (_global_gdtr), %rax
-	nop
+	mov %rdi, %rax
 	lgdt (%rax)
     mov $0x20, %rax
     mov %ax, %ds

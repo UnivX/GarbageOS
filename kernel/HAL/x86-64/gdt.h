@@ -18,22 +18,23 @@ typedef struct GDTR{
 	uint64_t gdt;
 }__attribute__((packed)) GDTR;
 
-#define GRANULARITY_FLAG 1 << 3
-#define SIZE_FLAG 1 << 2
-#define LONG_MODE_FLAG 1 << 1
+#define GDT_GRANULARITY_FLAG 1 << 3
+#define GDT_SIZE_FLAG 1 << 2
+#define GDT_LONG_MODE_FLAG 1 << 1
 
-#define PRESENT 1 << 7
-#define DPL(x) x << 5
-#define NOT_SYSTEM 1 << 4
-#define EXECUTABLE 1 << 3
-#define DIRECTION 1 << 2
-#define CONFORMING 1 << 2
-#define READ_WRITE 1 << 1
+#define GDT_PRESENT 1 << 7
+#define GDT_DPL(x) x << 5
+#define GDT_NOT_SYSTEM 1 << 4
+#define GDT_EXECUTABLE 1 << 3
+#define GDT_DIRECTION 1 << 2
+#define GDT_CONFORMING 1 << 2
+#define GDT_READ_WRITE 1 << 1
 
-#define TYPE_TSS_AVAIBLE 0x9
-#define TYPE_TSS_BUSY 0xB
-#define TYPE_LDT 0x2
+#define GDT_TYPE_TSS_AVAIBLE 0x9
+#define GDT_TYPE_TSS_BUSY 0xB
+#define GDT_TYPE_LDT 0x2
 
 GDT make_gdt(uint64_t base, uint32_t limit, uint8_t flags, uint8_t access);
 
-void load_gdt(GDT* gdt, uint16_t size);
+//the gdtr pointer doesn't need to be initialized
+void load_gdt(GDT* gdt, uint16_t size, GDTR* gdtr);

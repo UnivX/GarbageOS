@@ -63,6 +63,7 @@ void finalize_kio(){
 void print_uint64_hex(uint64_t n){
 	putchar('0', false);
 	putchar('x', false);
+
 	uint8_t buffer[sizeof(n)*2];
 	for(unsigned int i = 0; i < sizeof(n)*2; i++)
 		buffer[i]=0;
@@ -75,7 +76,7 @@ void print_uint64_hex(uint64_t n){
 		counter++;
 	}
 
-	for(int i = counter-1; i >= 0; i--){
+	for(int i = sizeof(n)*2-1; i >= 0; i--){
 		int digit = buffer[i];
 		if(digit >= 10){
 			putchar('A'+digit-10, false);
@@ -88,6 +89,9 @@ void print_uint64_hex(uint64_t n){
 void print_uint64_dec(uint64_t n){
 	const uint64_t buffer_size = 128;
 	uint8_t buffer[buffer_size];
+
+	if(n == 0)
+		putchar('0', false);
 
 	for(unsigned int i = 0; i < sizeof(n)*2; i++)
 		buffer[i]=0;
