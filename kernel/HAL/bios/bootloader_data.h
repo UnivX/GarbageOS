@@ -66,6 +66,7 @@ typedef struct BootLoaderData{
 	FrameData* frame_allocator_data;
 	uint32_t* map_items_count;
 	MemoryMapItem* map_items;
+	void* elf_image;
 } __attribute__ ((packed)) BootLoaderData;
 
 BootLoaderData* get_bootloader_data();

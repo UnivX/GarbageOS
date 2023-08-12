@@ -114,6 +114,12 @@ load_segment:
 	xor rcx, rcx
 	mov cl, [rbx+0x4]
 	and cl, 2
+
+	;NOTE: fix, idk why but even if the MSR is setted to let write on non write pages
+	;the cpu will throw a page protection fault so always put the write permission
+	;TODO: remove it after the write
+	mov cl, 2
+
 	mov rbx, rdi
 	call lmode_alloc_frame;rax = frame
 	;rcx = flags, rbx= virtual addr, rax=frame
@@ -230,6 +236,9 @@ call_kernel:
 	mov rbx, frame_allocator_data
 	mov [exp_frame_allocator_data_ptr], rbx
 
+	mov rbx, [kernel_image_address64]
+	mov [exp_elf_image_ptr], rbx
+
 	xor rbx, rbx
 	mov bx, [memory_map_offset]
 	mov [exp_memory_map_size_ptr], rbx
@@ -254,3 +263,4 @@ exp_vbe_mode_info_s_ptr dq 0
 exp_frame_allocator_data_ptr dq 0
 exp_memory_map_size_ptr dq 0
 exp_memory_map_arr_ptr dq 0
+exp_elf_image_ptr dq 0

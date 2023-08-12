@@ -6,11 +6,12 @@
 #include "frame_allocator.h"
 #include "interrupt/interrupts.h"
 #include "kio.h"
+#include "elf.h"
 
 //TODO: test the PIC
 
 void interrupt_print(uint64_t error){
-	print("interrupt 0x40 called");
+	print("interrupt 0x40 called\n");
 }
 
 void page_fault(uint64_t error){
@@ -42,6 +43,37 @@ void page_fault(uint64_t error){
 	halt();
 }
 
+void print_elf_info(){
+	print("kernel image addr: ");
+	print_uint64_hex((uint64_t)get_kernel_image());
+	print("\n");
+	ElfHeader* kernel_elf = (ElfHeader*)get_kernel_image();
+
+	if(!elf_validate_header(kernel_elf)){
+		print("elf image is not valid\n");
+		return;
+	}
+	print("elf image is valid\n");
+
+	uint16_t loaded_segments = elf_get_number_of_loaded_entries(kernel_elf);
+	const size_t segments_size = 32;
+	ElfLoadedSegment segments[segments_size];//max 32 segments
+	elf_get_loaded_entries(kernel_elf, segments, segments_size);
+
+	print("number of loaded segments: ");
+	print_uint64_dec((uint64_t)loaded_segments);
+	print("\n");
+	if(loaded_segments > segments_size)
+		print("displaying only the first 32 segments:\n");
+	for(uint16_t i = 0; i < loaded_segments && i < segments_size; i++){
+		print("Start: ");
+		print_uint64_hex((uint64_t)segments[i].vaddr);
+		print(" / Size: ");
+		print_uint64_hex(segments[i].size);
+		print("\n");
+	}
+}
+
 uint64_t kmain(){
 	init_frame_allocator();
 	set_up_firmware_layer();
@@ -60,10 +92,15 @@ uint64_t kmain(){
 	Color font_color = {0,255,0,255};
 	PSFFont font = get_default_PSF_font();
 	init_kio(display, font, background_color, font_color);
-	for(int i = 0; i < 100; i++){
+
+	print_elf_info();
+	for(int i = 0; i < 3; i++){
 		print_uint64_dec(i);
 		print(" - I'm a kernel\n");
 	}
+
 	asm volatile("int $0x40");
+
+
 	return 0;
 }

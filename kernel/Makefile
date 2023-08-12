@@ -1,8 +1,8 @@
-CROSS_PATH=$${HOME}/cross/bin
+CROSS_PATH=$${HOME}/opt/cross/bin
 CC=${CROSS_PATH}/x86_64-elf-gcc
 AS=${CROSS_PATH}/x86_64-elf-as
 CFLAGS =-mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -std=gnu99 -ffreestanding -Wall -Wextra -g -O2
-LINKERFLAGS = -T linker.ld -ffreestanding -nostdlib -lgcc -no-pie
+LINKERFLAGS = -T linker.ld -ffreestanding -nostdlib -lgcc -no-pie -z max-page-size=4096
 
 EXEC = krnl.bin
 
