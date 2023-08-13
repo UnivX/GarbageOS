@@ -13,14 +13,14 @@ extern const uint8_t _binary_font_Tamsyn10x20r_psf_start[];
 extern const uint8_t _binary_font_Tamsyn10x20r_psf_end[];
 
 typedef struct PSFHeader{
-    uint32_t magic;         /* magic bytes to identify PSF */
-    uint32_t version;       /* zero */
-    uint32_t headersize;    /* offset of bitmaps in file, 32 */
-    uint32_t flags;         /* 0 if there's no unicode table */
-    uint32_t numglyph;      /* number of glyphs */
-    uint32_t bytesperglyph; /* size of each glyph */
-    uint32_t height;        /* height in pixels */
-    uint32_t width;         /* width in pixels */
+    uint32_t magic;
+    uint32_t version;
+    uint32_t headersize;
+    uint32_t flags;
+    uint32_t numglyph;
+    uint32_t bytesperglyph;
+    uint32_t height;
+    uint32_t width;
 } __attribute__((packed)) PSFHeader;
 
 typedef struct PSFFont {
