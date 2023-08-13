@@ -38,15 +38,15 @@ typedef struct HeapChunkHeader{
 	uint64_t size;//the size is only that of the user data
 } HeapChunkHeader;
 
-uint64_t get_fixed_heap_chunk_size(HeapChunkHeader* header);
-bool get_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
-void set_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
-HeapChunkHeader* get_next_heap_chunk_header(HeapChunkHeader* header);
-HeapChunkHeader* get_prev_heap_chunk_header(HeapChunkHeader* header);
-void* get_heap_chunk_user_data(HeapChunkHeader* header);
-void set_bucket_list_next(HeapChunkHeader* header, HeapChunkHeader* next);
-HeapChunkHeader* get_bucket_list_next(HeapChunkHeader* header);
-bool check_heap_chunk_is_corrupted(HeapChunkHeader* header);
+static uint64_t get_fixed_heap_chunk_size(HeapChunkHeader* header);
+static bool get_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
+static void set_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
+static HeapChunkHeader* get_next_heap_chunk_header(HeapChunkHeader* header);
+static HeapChunkHeader* get_prev_heap_chunk_header(HeapChunkHeader* header);
+static void* get_heap_chunk_user_data(HeapChunkHeader* header);
+static void set_bucket_list_next(HeapChunkHeader* header, HeapChunkHeader* next);
+static HeapChunkHeader* get_bucket_list_next(HeapChunkHeader* header);
+static bool is_heap_chunk_corrupted(HeapChunkHeader* header);
 
 typedef struct HeapChunkFooter{
 	uint64_t size;//at the moment it doesnt store any flag
@@ -64,7 +64,7 @@ typedef struct Heap{
 	HeapChunkHeader* free_buckets[BUCKETS_COUNT];//multiple linked list of free chunks, each bucket has its size
 } Heap;
 
-void initizialize_heap(Heap* heap, void* start, uint64_t size);
-void enable_heap_growth(Heap* heap);
-bool is_first_chunk_of_heap(Heap* heap, HeapChunkHeader* header);
-bool is_last_chunk_of_heap(HeapChunkHeader* header);
+static void initizialize_heap(Heap* heap, void* start, uint64_t size);
+static void enable_heap_growth(Heap* heap);
+static bool is_first_chunk_of_heap(Heap* heap, HeapChunkHeader* header);
+static bool is_last_chunk_of_heap(HeapChunkHeader* header);
