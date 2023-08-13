@@ -1,6 +1,6 @@
 #include <stddef.h>
 #include "vbe.h"
-#include "../../memory.h"
+#include "../../mem/memory.h"
 #include "../../hal.h"
 #include "../../kdefs.h"
 

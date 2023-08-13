@@ -1,6 +1,6 @@
 #pragma once
 #include <stdbool.h>
-#include "hal.h"
+#include "../hal.h"
 
 /* a stack that requires a contiguous physical ram space
  * used to take care of freed frames

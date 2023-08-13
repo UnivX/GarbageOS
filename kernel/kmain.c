@@ -3,7 +3,7 @@
 #include "kdefs.h"
 #include "hal.h"
 #include "HAL/x86-64/gdt.h"
-#include "frame_allocator.h"
+#include "mem/frame_allocator.h"
 #include "interrupt/interrupts.h"
 #include "kio.h"
 #include "elf.h"

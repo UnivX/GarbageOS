@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include "display_interface.h"
-#include "memory.h"
+#include "mem/memory.h"
 #include "kdefs.h"
 #include "hal.h"
 #include "psf.h"

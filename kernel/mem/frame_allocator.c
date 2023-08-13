@@ -1,6 +1,6 @@
 #include "frame_allocator.h"
-#include "kdefs.h"
-#include "hal.h"
+#include "../kdefs.h"
+#include "../hal.h"
 
 struct FrameAllocatorState frame_allocator={false, {0, NULL}, {NULL, NULL, 0}, 0};
 
