@@ -133,3 +133,8 @@ PhysicalMemoryRange get_bootstage_indentity_mapped_RAM(){
 	PhysicalMemoryRange result = {0,1*GB};
 	return result;
 }
+
+void* get_kernel_image(){
+	BootLoaderData* boot_data = get_bootloader_data();
+	return boot_data->elf_image;
+}

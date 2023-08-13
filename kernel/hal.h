@@ -13,11 +13,15 @@
  * HAL common defines
  */
 
+#define BIG_ENDIAN 0
+#define LITTLE_ENDIAN 1
 #define INVALID_ADDR (void*)~((uint64_t)(0))
 
 /*
  * HAL arch specific defines
  */
+#define ENDIANESS LITTLE_ENDIAN
+
 /*--------------x86-64 + BIOS default defines--------------*/
 /*paging common flags*/ #define PAGE_PRESENT 1
 #define PAGE_WRITABLE 2
@@ -86,6 +90,10 @@ uint64_t get_total_usable_RAM_size();
 PhysicalMemoryRange get_bootstage_indentity_mapped_RAM();
 
 DisplayInterface get_firmware_display();
+
+//return the image of the kernel that has been loaded by the bootloader
+//NOTE: the address is physical
+void* get_kernel_image();
 
 void memory_fence();
 void io_wait();
