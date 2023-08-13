@@ -9,11 +9,12 @@
 #define HEAP_WILDERNESS_CHUNK 2
 #define HEAP_FLAG3 4
 #define BUCKETS_COUNT 128
+#define HEAP_CHUNK_MIN_SIZE 16
 
 //TODO:
-//-function for merging chunks
-//-function for splitting chunks
-//-all the other stuff
+//-malloc
+//-free
+//-make the size of the footer and header 32 bit and rework the initial big chunk in initialization
 
 /*
  *
@@ -37,15 +38,19 @@
 typedef struct HeapChunkHeader{
 	uint64_t size;//the size is only that of the user data
 } HeapChunkHeader;
+//the chunk must be at least 16 byte
 
 static uint64_t get_fixed_heap_chunk_size(HeapChunkHeader* header);
 static bool get_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
 static void set_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
+static void reset_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
 static HeapChunkHeader* get_next_heap_chunk_header(HeapChunkHeader* header);
 static HeapChunkHeader* get_prev_heap_chunk_header(HeapChunkHeader* header);
 static void* get_heap_chunk_user_data(HeapChunkHeader* header);
 static void set_bucket_list_next(HeapChunkHeader* header, HeapChunkHeader* next);
 static HeapChunkHeader* get_bucket_list_next(HeapChunkHeader* header);
+static void set_bucket_list_prev(HeapChunkHeader* header, HeapChunkHeader* prev);
+static HeapChunkHeader* get_bucket_list_prev(HeapChunkHeader* header);
 static bool is_heap_chunk_corrupted(HeapChunkHeader* header);
 
 typedef struct HeapChunkFooter{
@@ -68,3 +73,12 @@ static void initizialize_heap(Heap* heap, void* start, uint64_t size);
 static void enable_heap_growth(Heap* heap);
 static bool is_first_chunk_of_heap(Heap* heap, HeapChunkHeader* header);
 static bool is_last_chunk_of_heap(HeapChunkHeader* header);
+static void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header);
+//if not splittable return false
+//the requested chunk will be that pointed by header argument
+//the spare one will be the next to the requested chunk
+static bool split_chunk_and_alloc(Heap* heap, HeapChunkHeader* header, uint64_t first_chunk_size);
+static void remove_from_bucket_list(Heap* heap, HeapChunkHeader* header);
+static void add_to_bucket_list(Heap* heap, HeapChunkHeader* header);
+static int get_bucket_index_from_size(uint64_t size);
+static void alloc_chunk(Heap* heap, HeapChunkHeader* header);

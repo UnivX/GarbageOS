@@ -9,7 +9,11 @@ bool get_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag){
 }
 
 void set_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag){
-	header->size &= flag;
+	header->size |= flag;
+}
+
+void reset_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag){
+	header->size &= ~flag;
 }
 
 HeapChunkHeader* get_next_heap_chunk_header(HeapChunkHeader* header){
@@ -45,10 +49,27 @@ HeapChunkHeader* get_bucket_list_next(HeapChunkHeader* header){
 	return *ptr_to_next;
 }
 
+static void set_bucket_list_prev(HeapChunkHeader* header, HeapChunkHeader* prev){
+	//assert that the chunk is free and that we are not going to override some user data
+	KASSERT(get_heap_chunk_flag(header, HEAP_FREE_CHUNK))
+	HeapChunkHeader** ptr_to_prev = (HeapChunkHeader**)(get_heap_chunk_user_data(header)+8);
+	*ptr_to_prev = prev;
+}
+
+static HeapChunkHeader* get_bucket_list_prev(HeapChunkHeader* header){
+	KASSERT(get_heap_chunk_flag(header, HEAP_FREE_CHUNK))
+	HeapChunkHeader** prev_to_next = (HeapChunkHeader**)(get_heap_chunk_user_data(header)+8);
+	return *prev_to_next;
+}
+
 bool is_heap_chunk_corrupted(HeapChunkHeader* header){
 	//check if the two sizes are different
 	HeapChunkFooter* footer = get_heap_chunk_footer_from_header(header);
-	return get_fixed_heap_chunk_size_from_footer(footer) != get_fixed_heap_chunk_size(header);
+	if(get_fixed_heap_chunk_size_from_footer(footer) != get_fixed_heap_chunk_size(header))
+		return false;
+	if((footer->size & 7) != 0)
+		return false;
+	return true;
 }
 
 HeapChunkHeader* get_heap_chunk_header_from_footer(HeapChunkFooter* footer){
@@ -91,6 +112,7 @@ void initizialize_heap(Heap* heap, void* start, uint64_t size){
 	set_heap_chunk_flag(chunk_header, HEAP_WILDERNESS_CHUNK);
 	set_heap_chunk_flag(chunk_header, HEAP_FREE_CHUNK);
 	set_bucket_list_next(chunk_header, NULL);
+	set_bucket_list_prev(chunk_header, NULL);
 
 	HeapChunkFooter* chunk_footer = get_heap_chunk_footer_from_header(chunk_header);
 	chunk_footer->size = user_data_size;
@@ -107,4 +129,140 @@ bool is_last_chunk_of_heap(HeapChunkHeader* header){
 }
 void enable_heap_growth(Heap* heap){
 	heap->enable_growth = true;
+}
+
+void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header){
+	KASSERT(!is_last_chunk_of_heap(header));
+	HeapChunkHeader* next = get_next_heap_chunk_header(header);
+	KASSERT(get_heap_chunk_flag(header, HEAP_FREE_CHUNK));
+	KASSERT(get_heap_chunk_flag(next, HEAP_FREE_CHUNK));
+	
+	//remove the two from the bucket list
+	remove_from_bucket_list(heap, header);
+	remove_from_bucket_list(heap, next);
+
+	//the next header and the old footer will be overrided so the new size will have them
+	uint64_t next_size = get_fixed_heap_chunk_size(next);
+	uint64_t header_size = get_fixed_heap_chunk_size(header);
+	uint64_t new_size = next_size + header_size + sizeof(HeapChunkFooter) + sizeof(HeapChunkHeader);
+	KASSERT(new_size % 8 == 0);
+	
+	//set the new header
+	header->size = new_size;
+	set_heap_chunk_flag(header, HEAP_FREE_CHUNK);
+	//if the next is the wilderness chunk then set the merged one to be the new
+	if(get_heap_chunk_flag(next, HEAP_WILDERNESS_CHUNK)){
+		set_heap_chunk_flag(header, HEAP_WILDERNESS_CHUNK);
+		heap->wilderness_chunk = header;
+	}
+
+	//set the new footer
+	HeapChunkFooter* footer = get_heap_chunk_footer_from_header(next);
+	footer->size = new_size;
+
+	//add the new chunk to the bucket list
+	add_to_bucket_list(heap, header);
+}
+
+ bool split_chunk_and_alloc(Heap* heap, HeapChunkHeader* header, uint64_t first_chunk_size){
+	KASSERT(get_heap_chunk_flag(header, HEAP_FREE_CHUNK));
+	KASSERT(first_chunk_size % 8 == 0)
+
+	int64_t sencond_chunk_size = get_fixed_heap_chunk_size(header);
+	sencond_chunk_size -= first_chunk_size + sizeof(HeapChunkFooter) + sizeof(HeapChunkHeader);
+	if(sencond_chunk_size < HEAP_CHUNK_MIN_SIZE)
+		return false;
+	KASSERT(sencond_chunk_size % 8 == 0)
+
+	bool is_header_wilderness_chunk = get_heap_chunk_flag(header, HEAP_WILDERNESS_CHUNK);
+	remove_from_bucket_list(heap, header);
+
+	//create the first chunk
+	header->size = first_chunk_size;//do not set the free chunk flag
+	HeapChunkFooter* first_chunk_footer = get_heap_chunk_footer_from_header(header);
+	first_chunk_footer->size = first_chunk_size;
+	//do not add to the bucket because it will not be free
+
+	//create the second_chunk
+	//the next chunk ptr is caluculated from the data from the header, so it's possibile to just write this
+	HeapChunkHeader* second_chunk = get_next_heap_chunk_header(header);
+	second_chunk->size = (uint64_t)sencond_chunk_size;
+	set_heap_chunk_flag(second_chunk, HEAP_FREE_CHUNK);
+	if(is_header_wilderness_chunk){
+		set_heap_chunk_flag(second_chunk, HEAP_WILDERNESS_CHUNK);
+		heap->wilderness_chunk = second_chunk;
+	}
+	HeapChunkFooter* sencond_chunk_footer = get_heap_chunk_footer_from_header(second_chunk);
+	sencond_chunk_footer->size = (uint64_t)sencond_chunk_size;
+	add_to_bucket_list(heap, header);
+
+	return true;
+}
+
+void remove_from_bucket_list(Heap* heap, HeapChunkHeader* header){
+	int index = get_bucket_index_from_size(get_fixed_heap_chunk_size(header));
+	HeapChunkHeader* prev_list_elem = get_bucket_list_prev(header);
+	HeapChunkHeader* next_list_elem = get_bucket_list_next(header);
+
+	//if it's the first in the list remove it from it
+	if(heap->free_buckets[index] == header)
+		heap->free_buckets[index] = next_list_elem;//even if NULL it's good
+	
+
+	//link the prev with the next 
+	if(prev_list_elem != NULL && next_list_elem != NULL){
+		set_bucket_list_next(prev_list_elem, next_list_elem);
+		set_bucket_list_prev(next_list_elem, prev_list_elem);
+	}else{
+		if(prev_list_elem == NULL && next_list_elem != NULL){
+			set_bucket_list_prev(next_list_elem, NULL);
+		}else if(prev_list_elem != NULL && next_list_elem == NULL){
+			set_bucket_list_next(prev_list_elem, NULL);
+		}
+	}
+
+	//remove the links from this one
+	set_bucket_list_next(header, NULL);
+	set_bucket_list_prev(header, NULL);
+}
+
+void add_to_bucket_list(Heap* heap, HeapChunkHeader* header){
+	int index = get_bucket_index_from_size(get_fixed_heap_chunk_size(header));
+	set_bucket_list_prev(header, NULL);
+	set_bucket_list_next(header, heap->free_buckets[index]);
+	set_bucket_list_prev(heap->free_buckets[index], header);
+	heap->free_buckets[index] = header;
+}
+
+int get_bucket_index_from_size(uint64_t size){
+	if(size == 16)
+		return 0;
+	if(size == 24)
+		return 1;
+	if(size == 32)
+		return 2;
+
+	if(size <= (1<<21)-1){
+		//logarithmic growth till 2^14
+		int idx = -5+3;//32 = 2^5
+		uint64_t cpy = size;
+		while(cpy != 1){
+			cpy >>= 1;
+			idx++;
+		}
+		KASSERT(idx > 2);
+		KASSERT(idx <= 20);
+		return idx;
+	}
+	const uint64_t step = 512*MB / (BUCKETS_COUNT-14);
+	uint64_t index = (size / step) + 14;
+	if(index > BUCKETS_COUNT-1)
+		index = BUCKETS_COUNT-1;
+	return index;
+}
+
+void alloc_chunk(Heap* heap, HeapChunkHeader* header){
+	KASSERT(!get_heap_chunk_flag(header, HEAP_WILDERNESS_CHUNK));
+	remove_from_bucket_list(heap, header);
+	reset_heap_chunk_flag(header, HEAP_FREE_CHUNK);
 }
