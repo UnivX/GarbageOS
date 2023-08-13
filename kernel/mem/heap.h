@@ -52,9 +52,9 @@ typedef struct HeapChunkFooter{
 	uint64_t size;//at the moment it doesnt store any flag
 }HeapChunkFooter;
 
-uint64_t get_fixed_heap_chunk_size_from_footer(HeapChunkFooter* footer);
-HeapChunkHeader* get_heap_chunk_header_from_footer(HeapChunkFooter* footer);
-HeapChunkFooter* get_heap_chunk_footer_from_header(HeapChunkHeader* header);
+static uint64_t get_fixed_heap_chunk_size_from_footer(HeapChunkFooter* footer);
+static HeapChunkHeader* get_heap_chunk_header_from_footer(HeapChunkFooter* footer);
+static HeapChunkFooter* get_heap_chunk_footer_from_header(HeapChunkHeader* header);
 
 typedef struct Heap{
 	bool enable_growth;//flag that enables the heap to grow when needed
