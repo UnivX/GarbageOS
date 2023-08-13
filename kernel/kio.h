@@ -21,6 +21,7 @@ typedef struct KioState{
 //the display interface needs to be initialized
 //the display will be finalized during the
 //finalize_kio() function
+bool is_kio_initialized();
 void init_kio(DisplayInterface display, PSFFont font, Color background_color, Color font_color);
 void putchar(char c, bool flush);
 void print(char* str);

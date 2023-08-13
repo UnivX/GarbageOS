@@ -14,6 +14,9 @@
 
 #define INTERRUPT_NUMBER 256
 
+#define DOUBLE_FAULT_INT_NUMBER 0x8
+#define NMI_INT_NUMBER 0x2
+
 static bool is_initialized = false;
 extern uint64_t isr_stub_table[];
 extern uint64_t isr_stub_table_end[];
@@ -54,10 +57,18 @@ void set_up_gdt_tss(){
 	gdt[4] = make_gdt(0, 0xffffff, GDT_GRANULARITY_FLAG | GDT_LONG_MODE_FLAG,
 			GDT_PRESENT | GDT_DPL(3) | GDT_NOT_SYSTEM | GDT_READ_WRITE);
 
+	//the TSS and GDT is per CPU Physical Thread
 	//TSS
 	init_tss(tss);
+	//alloc an emergency stack for an NMI or DOUBLE FAULT
 	tss->ist1 = alloc_stack(INTERRUPT_STACK_SIZE);
-	tss->rsp0 = alloc_stack(SYSTEM_CALL_STACK_SIZE);
+
+	//rsp0-1-2 -> stack used when a lower CPL call higher CPL code
+	//if it jumps to ring 0 will be used rsp0, ring1 -> rsp1 and so on
+	void* cpl_change_stack = alloc_stack(SYSTEM_CALL_STACK_SIZE);//we use only one stack per physical thread
+	tss->rsp0 = cpl_change_stack;
+	tss->rsp1 = cpl_change_stack;
+	tss->rsp2 = cpl_change_stack;
 	gdt[5] = make_gdt((uint64_t)tss, sizeof(TSS)-1, GDT_LONG_MODE_FLAG,
 			GDT_PRESENT | GDT_DPL(0) | GDT_TYPE_TSS_AVAIBLE);
 
@@ -80,14 +91,17 @@ void set_up_idt(){
 
 	for(int i = 0; i < INTERRUPT_NUMBER; i++){
 		uint64_t isr = isr_stub_table[i];
-		uint8_t ist1 = 1;
+		uint8_t ist = 0;//the ist used in the TSS, if set to 0 none is used
 		uint8_t attributes_type = IDT_DPL(0) | IDT_PRESENT(1);
-		if (i <= LAST_IDT_EXCEPTION)
+
+		if (i == DOUBLE_FAULT_INT_NUMBER || i == NMI_INT_NUMBER){
+			//if it's an abort interrupt wich needs to have a good known stack
 			attributes_type |= IDT_TRAP_TYPE;
-		else
+			ist = 1;
+		}else
 			attributes_type |= IDT_INTERRUPT_TYPE;
 
-		idt_array[i] = make_idt_entry((void*)isr, KERNEL_CODE_SELECTOR, ist1, attributes_type);
+		idt_array[i] = make_idt_entry((void*)isr, KERNEL_CODE_SELECTOR, ist, attributes_type);
 	}
 	idtr->idt = (uint64_t)&idt_array[0];
 	idtr->size = (sizeof(IDTEntry)*INTERRUPT_NUMBER) -1;

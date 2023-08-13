@@ -24,7 +24,10 @@ enum ErrorCodes{
 	VBE_ERROR = 2,
 	FREE_MEM_BOOTLOADER_ERROR = 3,
 	KIO_ERROR = 4,
-	FAILED_ASSERT = 5
+	FAILED_ASSERT = 5,
+	STACK_SMASHING = 6,
+	UNRECOVERABLE_GPF = 7,
+	UNRECOVERABLE_PAGE_FAULT = 8
 };
 
 //a bidimensional integer vector

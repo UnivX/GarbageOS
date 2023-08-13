@@ -4,6 +4,7 @@ set_up_long_mode:
 	lgdt [protected_mode_gdtr]
 	mov eax, cr0
 	or al, 1 ;set Protection Enabled flag
+	and eax, ~(1<<16);clear write protect
 	mov cr0, eax
 	jmp 0x08:.protected_mode
 	call disable_nmi

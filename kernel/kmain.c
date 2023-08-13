@@ -9,11 +9,8 @@
 
 //TODO: test the PIC
 
-void interrupt_print(uint64_t error){
-	print("interrupt 0x40 called");
-}
-
-void page_fault(uint64_t error){
+void page_fault(InterruptInfo info){
+	uint64_t error = info.error;
 	print("[PAGE FAULT] ");
 
 	if(error & 1<<1)
@@ -39,7 +36,22 @@ void page_fault(uint64_t error){
 	print("\n[PAGE FAULT ADDRESS] ");
 	print_uint64_hex(cr2);
 	print("\n");
-	halt();
+	kpanic(UNRECOVERABLE_PAGE_FAULT);
+}
+
+void general_protection_fault(InterruptInfo info){
+	print("[GENERAL PROTECTION FAULT] error: ");
+	print_uint64_hex(info.error);
+	print("\n");
+	kpanic(UNRECOVERABLE_GPF);
+}
+
+void interrupt_print(InterruptInfo info){
+	print("[INT ");
+	print_uint64_dec(info.interrupt_number);
+	print("] error: ");
+	print_uint64_hex(info.error);
+	print("\n");
 }
 
 uint64_t kmain(){
@@ -48,22 +60,27 @@ uint64_t kmain(){
 	set_up_arch_layer();
 	init_interrupts();
 	enable_interrupts();
-	install_interrupt_handler(0x40, interrupt_print);
+	install_default_interrupt_handler(interrupt_print);
 	install_interrupt_handler(0xe, page_fault);
+	install_interrupt_handler(0xd, general_protection_fault);
+
 
 	DisplayInterface display = get_firmware_display();
 	display.init();
 	if(display.info.height*display.info.width > BUFFER_SIZE)
 		return -1;
-
+	volatile int arr[1];
 	Color background_color = {0,0,0,255};
 	Color font_color = {0,255,0,255};
 	PSFFont font = get_default_PSF_font();
 	init_kio(display, font, background_color, font_color);
-	for(int i = 0; i < 100; i++){
+
+	for(int i = 0; i < 5; i++){
 		print_uint64_dec(i);
 		print(" - I'm a kernel\n");
 	}
+	for(int i = 0; i < 1024; i++)
+		arr[i] = 0;
 	asm volatile("int $0x40");
 	return 0;
 }

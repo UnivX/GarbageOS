@@ -50,7 +50,7 @@ uint64_t* get_page_table_entry(volatile void* vaddr){
 }
 
 //ivalidate the MMU cache of relative to the virtual address received as parameter
-inline void invalidate_TLB(volatile void* vaddr){
+static inline void invalidate_TLB(volatile void* vaddr){
 	memory_fence();
 	asm("invlpg (%0)" : : "r"(vaddr));
 }

@@ -14,6 +14,7 @@ doesn't make sense to return from this function as the bootloader is gone.
 .type _start, @function
 _start:
 	movabs $stack_top, %rsp
+	cld
 	call kmain
 	mov $0xc0ffebabe, %rcx
 	cli

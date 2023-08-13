@@ -3,9 +3,11 @@
 
 //array of function pointers
 InterruptHandler* handlers[MAX_INTERRUPTS];
+InterruptHandler* default_handler;
 
 void init_interrupts(){
 	init_pic();
+	default_handler = NULL;
 	for(int i = 0; i < MAX_INTERRUPTS; i++)
 		handlers[i] = NULL;
 }
@@ -13,6 +15,10 @@ void init_interrupts(){
 void install_interrupt_handler(uint64_t interrupt_number, InterruptHandler *handler){
 	KASSERT(interrupt_number < MAX_INTERRUPTS);
 	handlers[interrupt_number] = handler;
+}
+
+void install_default_interrupt_handler(InterruptHandler *handler){
+	default_handler = handler;
 }
 
 //this function will be called by some assembly defined in the HAL
@@ -24,8 +30,14 @@ void interrupt_routine(uint64_t interrupt_number, uint64_t error){
 	//will handle that correctly
 	bool is_spurious = is_interrupt_spurious(interrupt_number);
 
-	if(handlers[interrupt_number] != NULL && !is_spurious)
-		handlers[interrupt_number](error);
+	if(!is_spurious){
+		InterruptInfo info = {error, interrupt_number};
+
+		if(handlers[interrupt_number] != NULL)
+			handlers[interrupt_number](info);
+		else if (default_handler != NULL)
+			default_handler(info);
+	}
 
 	//if the interrupt comes from the PIC
 	if(interrupt_number-PIC_IDT_START < PIC_IDT_SIZE){

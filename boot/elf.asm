@@ -67,7 +67,6 @@ parse_program_header:
 	mov eax, [rbx+0x00]
 	cmp eax, PT_LOAD
 	jne .next_entry
-
 	;if it's a loadable segment
 	call load_segment
 
@@ -114,6 +113,7 @@ load_segment:
 	xor rcx, rcx
 	mov cl, [rbx+0x4]
 	and cl, 2
+	or cl, 2;for a bug of qemu
 	mov rbx, rdi
 	call lmode_alloc_frame;rax = frame
 	;rcx = flags, rbx= virtual addr, rax=frame
@@ -124,7 +124,6 @@ load_segment:
 	pop rcx
 	add rdi, 4096
 	loop .alloc_mem
-
 	;copy the file data
 	;rsi=elf file addr
 	mov rsi, [kernel_image_address64]
@@ -174,7 +173,6 @@ mem_cpy:
 	add rdi, 8
 	sub rcx, 8
 	jmp .copy8
-
 .copy1:
 	cmp rcx, 0
 	jz .end

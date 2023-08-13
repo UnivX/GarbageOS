@@ -19,6 +19,10 @@ void init_kio(DisplayInterface display, PSFFont font, Color background_color, Co
 	}
 }
 
+bool is_kio_initialized(){
+	return is_initialized;
+}
+
 void print(char* str){
 	while(*str != 0){
 		putchar(*str, false);
