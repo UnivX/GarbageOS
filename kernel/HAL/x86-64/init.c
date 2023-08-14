@@ -1,6 +1,7 @@
 #include "../../hal.h"
 #include "x64-memory.h"
 #include "../../mem/frame_allocator.h"
+#include "../../mem/vmm.h"
 #include "gdt.h"
 #include "idt.h"
 #include "tss.h"

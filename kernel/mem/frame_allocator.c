@@ -1,8 +1,9 @@
 #include "frame_allocator.h"
 #include "../kdefs.h"
 #include "../hal.h"
+#include "../kio.h"
 
-struct FrameAllocatorState frame_allocator={false, {0, NULL}, {NULL, NULL, 0}, 0};
+struct FrameAllocatorState frame_allocator={false, {0, NULL}, {NULL, NULL, 0}, 0, 0};
 
 bool is_frame_allocator_initialized(){
 	return frame_allocator.is_initialized;
@@ -26,6 +27,7 @@ void init_frame_allocator(){
 	
 	bool range_found = false;
 	PhysicalMemoryRange* free_ranges = frame_allocator.free_memory.free_ranges;
+
 	for(size_t i = 0; i < frame_allocator.free_memory.number_of_ranges && !range_found; i++){
 		bool is_usable_in_bootstage = free_ranges[i].start_address + needed_bytes_stack_frame < first_bootstage_unusable_addr &&
 										free_ranges[i].start_address >= bootstage_usable.start_address;
@@ -39,6 +41,10 @@ void init_frame_allocator(){
 		}
 	}
 
+	//calc the size
+	for(size_t i = 0; i < frame_allocator.free_memory.number_of_ranges; i++)
+		frame_allocator.free_frames += free_ranges[i].size / PAGE_SIZE;
+
 	//without frame stack is impossible to continue
 	if(!range_found)
 		kpanic(FRAME_ALLOCATOR_ERROR);
@@ -47,6 +53,8 @@ void init_frame_allocator(){
 void* alloc_frame(){
 	if(!is_frame_stack_valid(frame_allocator.frame_stack))
 		kpanic(FRAME_ALLOCATOR_ERROR);
+
+	frame_allocator.free_frames--;
 
 	//if there are frames in the frame_stack use one of them
 	if(frame_stack_count(frame_allocator.frame_stack) > 0){
@@ -82,6 +90,11 @@ void* alloc_frame(){
 			}
 			if(!range_found)
 				kpanic(FRAME_ALLOCATOR_ERROR);
+
+			void* new_frame = (void*)free_ranges[frame_allocator.cached_memory_range_index].start_address;
+			free_ranges[frame_allocator.cached_memory_range_index].size-=PAGE_SIZE;
+			free_ranges[frame_allocator.cached_memory_range_index].start_address+=PAGE_SIZE;
+			return new_frame;
 		}
 	}else{
 		//if we are in the boostage then we need to check if the range is usable in the bootstage
@@ -104,12 +117,19 @@ void* alloc_frame(){
 			}
 			if(!range_found)
 				kpanic(FRAME_ALLOCATOR_ERROR);
+
+			void* new_frame = (void*)free_ranges[frame_allocator.cached_memory_range_index].start_address;
+			free_ranges[frame_allocator.cached_memory_range_index].size-=PAGE_SIZE;
+			free_ranges[frame_allocator.cached_memory_range_index].start_address+=PAGE_SIZE;
+			return new_frame;
 		}
 	}
+	kpanic(FRAME_ALLOCATOR_ERROR);
 	return NULL;
 }
 
 void dealloc_frame(void* paddr){
+	frame_allocator.free_frames++;
 	frame_stack_push(&frame_allocator.frame_stack, (uint64_t)paddr);
 }
 
@@ -144,4 +164,7 @@ void frame_stack_push(FrameStack* stack, uint64_t new_value){
 		kpanic(FRAME_ALLOCATOR_ERROR);
 	*stack->top = new_value;
 	stack->top++;
+}
+uint64_t get_number_of_free_frames(){
+	return frame_allocator.free_frames;
 }

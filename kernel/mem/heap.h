@@ -11,12 +11,13 @@
 #define BUCKETS_COUNT 128
 #define HEAP_CHUNK_MIN_SIZE 16
 #define HEAP_DEBUG
+#define HEAP_CHUNK_SPLIT_OVERHEAD sizeof(HeapChunkHeader) + sizeof(HeapChunkFooter)
 
 //TODO:
 //-malloc
 //-free
 //-make the size of the footer and header 32 bit and rework the initial big chunk in initialization
-
+//-let the heap grow when out of resources
 /*
  *
  * Heap struct:
@@ -53,6 +54,7 @@ static HeapChunkHeader* get_bucket_list_next(HeapChunkHeader* header);
 static void set_bucket_list_prev(HeapChunkHeader* header, HeapChunkHeader* prev);
 static HeapChunkHeader* get_bucket_list_prev(HeapChunkHeader* header);
 static bool is_heap_chunk_corrupted(HeapChunkHeader* header);
+static HeapChunkHeader* get_heap_chunk_from_user_data(void* user_data);
 
 typedef struct HeapChunkFooter{
 	uint64_t size;//at the moment it doesnt store any flag
@@ -66,6 +68,7 @@ typedef struct Heap{
 	bool enable_growth;//flag that enables the heap to grow when needed
 	void* start;
 	uint64_t size;
+	uint64_t number_of_chunks;
 	HeapChunkHeader* wilderness_chunk;
 	HeapChunkHeader* free_buckets[BUCKETS_COUNT];//multiple linked list of free chunks, each bucket has its size
 } Heap;
@@ -85,3 +88,9 @@ static void add_to_bucket_list(Heap* heap, HeapChunkHeader* header);
 static int get_bucket_index_from_size(uint64_t size);
 static int get_bucket_index_from_header(HeapChunkHeader* header);
 static void alloc_chunk(Heap* heap, HeapChunkHeader* header);
+
+
+void kheap_init(void* start_heap_addr, uint64_t size);
+void* kmalloc(size_t size);
+void kfree(void* ptr);
+uint64_t get_number_of_chunks_of_kheap();

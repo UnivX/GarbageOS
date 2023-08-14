@@ -24,6 +24,7 @@ struct FrameAllocatorState{
 	FreePhysicalMemoryStruct free_memory;
 	FrameStack frame_stack;
 	size_t cached_memory_range_index;//mem range used by the allocate
+	uint64_t free_frames;
 };
 
 
@@ -32,3 +33,4 @@ void init_frame_allocator();
 
 void* alloc_frame();
 void dealloc_frame(void* paddr);
+uint64_t get_number_of_free_frames();

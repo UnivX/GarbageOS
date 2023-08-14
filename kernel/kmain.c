@@ -5,6 +5,8 @@
 #include "HAL/x86-64/gdt.h"
 #include "mem/frame_allocator.h"
 #include "interrupt/interrupts.h"
+#include "mem/heap.h"
+#include "mem/vmm.h"
 #include "kio.h"
 #include "elf.h"
 
@@ -109,6 +111,26 @@ uint64_t kmain(){
 		print_uint64_dec(i);
 		print(" - I'm a kernel\n");
 	}
+
+	print("free allocable memory(MB): ");
+	print_uint64_dec(get_number_of_free_frames() * PAGE_SIZE / MB);
+	print("\n");
+
+	kheap_init(alloc_kernel_heap(), KERNEL_HEAP_SIZE);
+
+	print("free allocable memory after heap allocation(MB): ");
+	print_uint64_dec(get_number_of_free_frames() * PAGE_SIZE / MB);
+	print("\n");
+
+	char* test = kmalloc(64);
+	char* test2 = kmalloc(64);
+
+	kfree(test);
+	kfree(test2);
+
+	print("number of chunks in heap: ");
+	print_uint64_dec(get_number_of_chunks_of_kheap());
+	print("\n");
 
 	asm volatile("int $0x40");
 
