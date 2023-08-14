@@ -104,7 +104,6 @@ uint64_t kmain(){
 	Color font_color = {0,255,0,255};
 	PSFFont font = get_default_PSF_font();
 	init_kio(display, font, background_color, font_color);
-
 	print_elf_info();
 	for(int i = 0; i < 3; i++){
 		print_uint64_dec(i);

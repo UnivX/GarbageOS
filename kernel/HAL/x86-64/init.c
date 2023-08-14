@@ -1,6 +1,6 @@
 #include "../../hal.h"
 #include "x64-memory.h"
-#include "../../mem/early_alloc.h"
+#include "../../mem/frame_allocator.h"
 #include "gdt.h"
 #include "idt.h"
 #include "tss.h"
@@ -36,9 +36,10 @@ void set_up_gdt_tss(){
 
 	//alloc a page for the gdt, gdtr and tss
 	KASSERT(sizeof(GDTR) + sizeof(TSS) + sizeof(GDT)*gdt_size < PAGE_SIZE);
-	GDT* gdt = (GDT*)early_alloc(sizeof(GDT)*gdt_size);
-	TSS* tss = (TSS*)early_alloc(sizeof(TSS));
-	GDTR* gdtr = (GDTR*)early_alloc(sizeof(GDTR)); 
+	void* new_page = alloc_frame();//we will use the physical address
+	GDT* gdt = (GDT*)new_page;
+	TSS* tss = (TSS*)(new_page + sizeof(GDT)*gdt_size);
+	GDTR* gdtr = (GDTR*)(new_page + sizeof(TSS)+ sizeof(GDT)*gdt_size);
 
 	//null descriptor
 	gdt[0] = make_gdt(0,0,0,0);
@@ -84,8 +85,9 @@ void set_up_idt(){
 
 	//alloc a page for the IDT and IDTR
 	KASSERT(sizeof(IDTEntry)*INTERRUPT_NUMBER <= PAGE_SIZE);
-	IDTEntry* idt_array = (IDTEntry*)early_alloc(INTERRUPT_NUMBER*sizeof(IDTEntry));
-	IDTR* idtr = (IDTR*)early_alloc(sizeof(IDTR));
+	void* new_page = alloc_frame();//we will use the physical address
+	IDTEntry* idt_array = (IDTEntry*)new_page;
+	IDTR* idtr = alloc_frame();//the idt_table is big one page
 
 	for(int i = 0; i < INTERRUPT_NUMBER; i++){
 		uint64_t isr = isr_stub_table[i];
