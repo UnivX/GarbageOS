@@ -128,10 +128,17 @@ void enable_heap_growth(Heap* heap){
 }
 
 void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header){
+
 	KASSERT(!is_last_chunk_of_heap(header));
 	HeapChunkHeader* next = get_next_heap_chunk_header(header);
 	KASSERT(get_heap_chunk_flag(header, HEAP_FREE_CHUNK));
 	KASSERT(get_heap_chunk_flag(next, HEAP_FREE_CHUNK));
+	bool is_wilderness_chunk = get_heap_chunk_flag(next, HEAP_WILDERNESS_CHUNK);
+
+	//keep the adress to check if it's the same after
+#ifdef HEAP_DEBUG
+	HeapChunkFooter* old_last_footer = get_heap_chunk_footer_from_header(next);
+#endif
 	
 	//remove the two from the bucket list
 	remove_from_bucket_list(heap, header);
@@ -147,7 +154,7 @@ void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header){
 	header->size = new_size;
 	set_heap_chunk_flag(header, HEAP_FREE_CHUNK);
 	//if the next is the wilderness chunk then set the merged one to be the new
-	if(get_heap_chunk_flag(next, HEAP_WILDERNESS_CHUNK)){
+	if(is_wilderness_chunk){
 		set_heap_chunk_flag(header, HEAP_WILDERNESS_CHUNK);
 		heap->wilderness_chunk = header;
 	}
@@ -156,41 +163,106 @@ void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header){
 	HeapChunkFooter* footer = get_heap_chunk_footer_from_header(next);
 	footer->size = new_size;
 
+	//check if they are the same
+#ifdef HEAP_DEBUG
+	KASSERT(footer == old_last_footer);
+#endif
+
 	//add the new chunk to the bucket list
 	add_to_bucket_list(heap, header);
+}
+void merge_with_next_and_prev_chunk(Heap* heap, HeapChunkHeader* header){
+	KASSERT(!is_last_chunk_of_heap(header));
+	KASSERT(!is_first_chunk_of_heap(heap, header));
+	HeapChunkHeader* next = get_next_heap_chunk_header(header);
+	HeapChunkHeader* prev = get_prev_heap_chunk_header(header);
+
+	KASSERT(get_heap_chunk_flag(header, HEAP_FREE_CHUNK));
+	KASSERT(get_heap_chunk_flag(prev, HEAP_FREE_CHUNK));
+	KASSERT(get_heap_chunk_flag(next, HEAP_FREE_CHUNK));
+
+	//keep the adress to check if it's the same after
+#ifdef HEAP_DEBUG
+	HeapChunkFooter* old_last_footer = get_heap_chunk_footer_from_header(next);
+#endif
+
+	bool is_wilderness_chunk = get_heap_chunk_flag(next, HEAP_WILDERNESS_CHUNK);
+
+	//remove all tree from the bucket lists
+	remove_from_bucket_list(heap, header);
+	remove_from_bucket_list(heap, next);
+	remove_from_bucket_list(heap, prev);
+
+	//calculate the new size
+	//add to the new size the size of the overrided footer and header
+	uint64_t new_size = sizeof(HeapChunkFooter)*2 + sizeof(HeapChunkHeader)*2;
+	new_size += get_fixed_heap_chunk_size(header);
+	new_size += get_fixed_heap_chunk_size(next);
+	new_size += get_fixed_heap_chunk_size(prev);
+	KASSERT(new_size % 8 == 0);
+
+	//set the new_header
+	prev->size = new_size;
+	set_heap_chunk_flag(prev, HEAP_FREE_CHUNK);
+	if(is_wilderness_chunk){
+		set_heap_chunk_flag(prev, HEAP_WILDERNESS_CHUNK);
+		heap->wilderness_chunk = prev;
+	}
+	
+	//set the new footer
+	HeapChunkFooter* footer = get_heap_chunk_footer_from_header(prev);
+	footer->size = new_size;
+
+	//check if they are the same
+#ifdef HEAP_DEBUG
+	KASSERT(footer == old_last_footer);
+#endif
+
+	//add the new merged chunk in the bucket list
+	add_to_bucket_list(heap, prev);
 }
 
  bool split_chunk_and_alloc(Heap* heap, HeapChunkHeader* header, uint64_t first_chunk_size){
 	KASSERT(get_heap_chunk_flag(header, HEAP_FREE_CHUNK));
-	KASSERT(first_chunk_size % 8 == 0)
+	KASSERT(first_chunk_size % 8 == 0);
+	KASSERT(first_chunk_size >= HEAP_CHUNK_MIN_SIZE);
 
-	int64_t sencond_chunk_size = get_fixed_heap_chunk_size(header);
-	sencond_chunk_size -= first_chunk_size + sizeof(HeapChunkFooter) + sizeof(HeapChunkHeader);
-	if(sencond_chunk_size < HEAP_CHUNK_MIN_SIZE)
+	//keep a copy of the old footer to check later if it's at the same address as the second_chunk_footer
+#ifdef HEAP_DEBUG
+	HeapChunkFooter* old_footer = get_heap_chunk_footer_from_header(header);
+#endif
+
+	int64_t second_chunk_size = get_fixed_heap_chunk_size(header);
+	second_chunk_size -= first_chunk_size + sizeof(HeapChunkFooter) + sizeof(HeapChunkHeader);
+	if(second_chunk_size < HEAP_CHUNK_MIN_SIZE)
 		return false;
-	KASSERT(sencond_chunk_size % 8 == 0)
+	KASSERT(second_chunk_size % 8 == 0)
 
 	bool is_header_wilderness_chunk = get_heap_chunk_flag(header, HEAP_WILDERNESS_CHUNK);
 	remove_from_bucket_list(heap, header);
 
 	//create the first chunk
-	header->size = first_chunk_size;//do not set the free chunk flag
+	header->size = first_chunk_size;//do not set the free chunk flag, also do not the set the wilderness flag, if needed it will be added to the last
 	HeapChunkFooter* first_chunk_footer = get_heap_chunk_footer_from_header(header);
 	first_chunk_footer->size = first_chunk_size;
 	//do not add to the bucket because it will not be free
 
-	//create the second_chunk
+	//create the second_chunk(the free one)
 	//the next chunk ptr is caluculated from the data from the header, so it's possibile to just write this
 	HeapChunkHeader* second_chunk = get_next_heap_chunk_header(header);
-	second_chunk->size = (uint64_t)sencond_chunk_size;
+	second_chunk->size = (uint64_t)second_chunk_size;
 	set_heap_chunk_flag(second_chunk, HEAP_FREE_CHUNK);
 	if(is_header_wilderness_chunk){
 		set_heap_chunk_flag(second_chunk, HEAP_WILDERNESS_CHUNK);
 		heap->wilderness_chunk = second_chunk;
 	}
-	HeapChunkFooter* sencond_chunk_footer = get_heap_chunk_footer_from_header(second_chunk);
-	sencond_chunk_footer->size = (uint64_t)sencond_chunk_size;
-	add_to_bucket_list(heap, header);
+	HeapChunkFooter* second_chunk_footer = get_heap_chunk_footer_from_header(second_chunk);
+	second_chunk_footer->size = (uint64_t)second_chunk_size;
+	add_to_bucket_list(heap, second_chunk);
+
+#ifdef HEAP_DEBUG
+	KASSERT(second_chunk_footer == old_footer);
+#endif
 
 	return true;
 }

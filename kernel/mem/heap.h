@@ -10,6 +10,7 @@
 #define HEAP_FLAG3 4
 #define BUCKETS_COUNT 128
 #define HEAP_CHUNK_MIN_SIZE 16
+#define HEAP_DEBUG
 
 //TODO:
 //-malloc
@@ -74,6 +75,7 @@ static void enable_heap_growth(Heap* heap);
 static bool is_first_chunk_of_heap(Heap* heap, HeapChunkHeader* header);
 static bool is_last_chunk_of_heap(HeapChunkHeader* header);
 static void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header);
+static void merge_with_next_and_prev_chunk(Heap* heap, HeapChunkHeader* header);
 //if not splittable return false
 //the requested chunk will be that pointed by header argument
 //the spare one will be the next to the requested chunk
