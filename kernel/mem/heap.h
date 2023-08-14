@@ -81,4 +81,5 @@ static bool split_chunk_and_alloc(Heap* heap, HeapChunkHeader* header, uint64_t 
 static void remove_from_bucket_list(Heap* heap, HeapChunkHeader* header);
 static void add_to_bucket_list(Heap* heap, HeapChunkHeader* header);
 static int get_bucket_index_from_size(uint64_t size);
+static int get_bucket_index_from_header(HeapChunkHeader* header);
 static void alloc_chunk(Heap* heap, HeapChunkHeader* header);

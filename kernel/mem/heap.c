@@ -111,14 +111,10 @@ void initizialize_heap(Heap* heap, void* start, uint64_t size){
 	chunk_header->size = user_data_size;
 	set_heap_chunk_flag(chunk_header, HEAP_WILDERNESS_CHUNK);
 	set_heap_chunk_flag(chunk_header, HEAP_FREE_CHUNK);
-	set_bucket_list_next(chunk_header, NULL);
-	set_bucket_list_prev(chunk_header, NULL);
-
 	HeapChunkFooter* chunk_footer = get_heap_chunk_footer_from_header(chunk_header);
 	chunk_footer->size = user_data_size;
-
 	heap->wilderness_chunk = chunk_header;
-	heap->free_buckets[BUCKETS_COUNT-1] = chunk_header;
+	add_to_bucket_list(heap, chunk_header);
 }
 
 bool is_first_chunk_of_heap(Heap* heap, HeapChunkHeader* header){
@@ -200,7 +196,7 @@ void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header){
 }
 
 void remove_from_bucket_list(Heap* heap, HeapChunkHeader* header){
-	int index = get_bucket_index_from_size(get_fixed_heap_chunk_size(header));
+	int index = get_bucket_index_from_header(header);
 	HeapChunkHeader* prev_list_elem = get_bucket_list_prev(header);
 	HeapChunkHeader* next_list_elem = get_bucket_list_next(header);
 
@@ -209,6 +205,7 @@ void remove_from_bucket_list(Heap* heap, HeapChunkHeader* header){
 		heap->free_buckets[index] = next_list_elem;//even if NULL it's good
 	
 
+	//TODO: possible optimization
 	//link the prev with the next 
 	if(prev_list_elem != NULL && next_list_elem != NULL){
 		set_bucket_list_next(prev_list_elem, next_list_elem);
@@ -227,13 +224,15 @@ void remove_from_bucket_list(Heap* heap, HeapChunkHeader* header){
 }
 
 void add_to_bucket_list(Heap* heap, HeapChunkHeader* header){
-	int index = get_bucket_index_from_size(get_fixed_heap_chunk_size(header));
+	int index = get_bucket_index_from_header(header);
 	set_bucket_list_prev(header, NULL);
 	set_bucket_list_next(header, heap->free_buckets[index]);
-	set_bucket_list_prev(heap->free_buckets[index], header);
+	if(heap->free_buckets[index] != NULL)
+		set_bucket_list_prev(heap->free_buckets[index], header);
 	heap->free_buckets[index] = header;
 }
 
+//TODO: do a better classification
 int get_bucket_index_from_size(uint64_t size){
 	if(size == 16)
 		return 0;
@@ -259,6 +258,13 @@ int get_bucket_index_from_size(uint64_t size){
 	if(index > BUCKETS_COUNT-1)
 		index = BUCKETS_COUNT-1;
 	return index;
+}
+
+int get_bucket_index_from_header(HeapChunkHeader* header){
+	//if it's the wild chunk return the last
+	if(get_heap_chunk_flag(header, HEAP_WILDERNESS_CHUNK))
+		return BUCKETS_COUNT-1;
+	return get_bucket_index_from_size(get_fixed_heap_chunk_size(header));
 }
 
 void alloc_chunk(Heap* heap, HeapChunkHeader* header){
