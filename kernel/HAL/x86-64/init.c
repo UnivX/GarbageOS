@@ -97,8 +97,11 @@ void set_up_idt(){
 
 		if (i == DOUBLE_FAULT_INT_NUMBER || i == NMI_INT_NUMBER){
 			//if it's an abort interrupt wich needs to have a good known stack
-			attributes_type |= IDT_TRAP_TYPE;
 			ist = 1;
+		}
+		if(i < 32){
+			//if it's an exception set it as a trap gate
+			attributes_type |= IDT_TRAP_TYPE;
 		}else
 			attributes_type |= IDT_INTERRUPT_TYPE;
 

@@ -126,7 +126,9 @@ uint64_t kmain(){
 	char* test2 = kmalloc(64);
 
 	kfree(test);
+	test = kmalloc(64);
 	kfree(test2);
+	kfree(test);
 
 	print("number of chunks in heap: ");
 	print_uint64_dec(get_number_of_chunks_of_kheap());
