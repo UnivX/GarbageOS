@@ -32,30 +32,35 @@ void set_up_caching(){
 			: : : "cc", "rax");
 }
 
+GDT* global_gdt = NULL;
+uint64_t number_of_tss = 1;
+
 void set_up_gdt_tss(){
 	const uint64_t gdt_size = 6;
 
 	//alloc a page for the gdt, gdtr and tss
-	KASSERT(sizeof(GDTR) + sizeof(TSS) + sizeof(GDT)*gdt_size < PAGE_SIZE);
+	KASSERT(sizeof(GDTR) + sizeof(TSS) <= PAGE_SIZE);
+	KASSERT(sizeof(GDT)*gdt_size <= PAGE_SIZE);
 	void* new_page = alloc_frame();//we will use the physical address
-	GDT* gdt = (GDT*)new_page;
-	TSS* tss = (TSS*)(new_page + sizeof(GDT)*gdt_size);
-	GDTR* gdtr = (GDTR*)(new_page + sizeof(TSS)+ sizeof(GDT)*gdt_size);
+	TSS* tss = (TSS*)new_page;
+	GDTR* gdtr = (GDTR*)(new_page + sizeof(TSS));
+
+	global_gdt = alloc_frame();
 
 	//null descriptor
-	gdt[0] = make_gdt(0,0,0,0);
+	global_gdt[0] = make_gdt(0,0,0,0);
 	//kernel code descriptor
-	gdt[1] = make_gdt(0, 0xffffff, GDT_GRANULARITY_FLAG | GDT_LONG_MODE_FLAG,
+	global_gdt[1] = make_gdt(0, 0xffffff, GDT_GRANULARITY_FLAG | GDT_LONG_MODE_FLAG,
 			GDT_PRESENT | GDT_DPL(0) | GDT_NOT_SYSTEM | GDT_EXECUTABLE | GDT_CONFORMING | GDT_READ_WRITE);
 	//kernel data descriptor
-	gdt[2] = make_gdt(0, 0xffffff, GDT_GRANULARITY_FLAG | GDT_LONG_MODE_FLAG,
+	global_gdt[2] = make_gdt(0, 0xffffff, GDT_GRANULARITY_FLAG | GDT_LONG_MODE_FLAG,
 			GDT_PRESENT | GDT_DPL(0) | GDT_NOT_SYSTEM | GDT_READ_WRITE);
 
 	//user code descriptor
-	gdt[3] = make_gdt(0, 0xffffff, GDT_GRANULARITY_FLAG | GDT_LONG_MODE_FLAG,
+	global_gdt[3] = make_gdt(0, 0xffffff, GDT_GRANULARITY_FLAG | GDT_LONG_MODE_FLAG,
 			GDT_PRESENT | GDT_DPL(3) | GDT_NOT_SYSTEM | GDT_EXECUTABLE | GDT_READ_WRITE);
 	//user data descriptor
-	gdt[4] = make_gdt(0, 0xffffff, GDT_GRANULARITY_FLAG | GDT_LONG_MODE_FLAG,
+	global_gdt[4] = make_gdt(0, 0xffffff, GDT_GRANULARITY_FLAG | GDT_LONG_MODE_FLAG,
 			GDT_PRESENT | GDT_DPL(3) | GDT_NOT_SYSTEM | GDT_READ_WRITE);
 
 	//the TSS and GDT is per CPU Physical Thread
@@ -70,11 +75,11 @@ void set_up_gdt_tss(){
 	tss->rsp0 = cpl_change_stack;
 	tss->rsp1 = cpl_change_stack;
 	tss->rsp2 = cpl_change_stack;
-	gdt[5] = make_gdt((uint64_t)tss, sizeof(TSS)-1, GDT_LONG_MODE_FLAG,
+	global_gdt[5] = make_gdt((uint64_t)tss, sizeof(TSS)-1, GDT_LONG_MODE_FLAG,
 			GDT_PRESENT | GDT_DPL(0) | GDT_TYPE_TSS_AVAIBLE);
 
 	memory_fence();//force the flush of the cpu write buffer and Write Combining buffer
-	load_gdt(gdt, gdt_size, gdtr);
+	load_gdt(global_gdt, gdt_size, gdtr);
 	asm volatile(
 			"mov $0x50, %%ax\n"
 			"ltr %%ax\n"
