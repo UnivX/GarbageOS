@@ -9,7 +9,6 @@
 #include "mem/vmm.h"
 #include "kio.h"
 #include "elf.h"
-
 //TODO: test the PIC
 void page_fault(InterruptInfo info){
 	uint64_t error = info.error;
@@ -87,6 +86,44 @@ void print_elf_info(){
 	}
 }
 
+void heap_stress_test(){
+	
+	const int max = 100;
+	void* allocated[max];
+	size_t sizes[5] = {32, 34, 512, 129, 16};
+	int sizes_idx = 0;
+
+	for(int i = 0; i < max; i++){
+		allocated[i] = kmalloc(sizes[sizes_idx]);
+		sizes_idx = (sizes_idx+1) % 5;
+	}
+
+	int n_of_free = 0;
+	uint32_t rand = 0x79a9f11c;
+	uint32_t times = 500;
+	while(n_of_free < 100 && times > 0){
+		uint32_t next_idx = rand % max;
+		if(allocated[next_idx] != NULL){
+			n_of_free++;
+			kfree(allocated[next_idx]);
+			allocated[next_idx] = NULL;
+		}
+		rand = (rand ^ (0x672890f1+(~rand ^ 0xb69f5cca + n_of_free)) + rand-(~n_of_free) % (rand ^ 0x672890f1));
+		times--;
+	}
+	for(int i = 0; i < max; i++)
+		if(allocated[i] != NULL)
+			kfree(allocated[i]);
+
+	if(get_number_of_chunks_of_kheap() == 1)
+		print("HEAP stress test PASSED\n");
+	else{
+		print("HEAP stress test FAILED / heap chunks: ");
+		print_uint64_dec(get_number_of_chunks_of_kheap());
+		print("\n");
+	}
+}
+
 uint64_t kmain(){
 	init_frame_allocator();
 	set_up_firmware_layer();
@@ -122,17 +159,7 @@ uint64_t kmain(){
 	print_uint64_dec(get_number_of_free_frames() * PAGE_SIZE / MB);
 	print("\n");
 
-	char* test = kmalloc(64);
-	char* test2 = kmalloc(64);
-
-	kfree(test);
-	test = kmalloc(64);
-	kfree(test2);
-	kfree(test);
-
-	print("number of chunks in heap: ");
-	print_uint64_dec(get_number_of_chunks_of_kheap());
-	print("\n");
+	heap_stress_test();
 
 	asm volatile("int $0x40");
 
