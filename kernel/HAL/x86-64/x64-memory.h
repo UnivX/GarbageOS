@@ -4,5 +4,3 @@
 
 /*PAGING FLAGS(declared in kdefs.h)*/
 #include "../../kdefs.h"
-
-void identity_map_memory();

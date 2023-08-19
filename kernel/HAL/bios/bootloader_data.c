@@ -4,7 +4,66 @@
 #include "../../kdefs.h"
 
 BootLoaderData* get_bootloader_data(){
-	return *(BootLoaderData**)(0x0600);
+	return *(BootLoaderData**)(0x1000);
+}
+
+PhysicalMemoryRange ram_range_buffer[MAX_PHYSICAL_MEMORY_RANGES];
+int64_t ram_ranges_number = -1;
+
+FreePhysicalMemoryStruct get_ram_space(){
+	if(ram_ranges_number != -1){
+		FreePhysicalMemoryStruct ram_memory;
+		ram_memory.free_ranges = ram_range_buffer;
+		ram_memory.number_of_ranges = ram_ranges_number;
+		return ram_memory;
+	}
+
+	BootLoaderData* boot_data = get_bootloader_data();
+	int64_t next_range = 0;
+	MemoryMapItem* map_items = boot_data->map_items;
+
+	//fill out the range_buffer with the free ranges
+	for(uint32_t i = 0; i < *boot_data->map_items_count; i++){
+		if(map_items[i].type == MEMORY_MAP_FREE && map_items[i].size != 0){
+			//the correct call of this function is MANDATORY for the rest of the kernel
+			if(next_range == MAX_PHYSICAL_MEMORY_RANGES)
+				kpanic(FREE_MEM_BOOTLOADER_ERROR);
+			ram_range_buffer[next_range].start_address = map_items[i].base_addr;
+			ram_range_buffer[next_range].size = map_items[i].size;
+			next_range++;
+		}
+	}
+
+	//sort the MemoryMapItem array with a bubblesort
+	for(int i = 0; i < next_range; i++)
+		for(int j = 0; j < next_range-i-1; j++)
+			if(ram_range_buffer[j].start_address > ram_range_buffer[j+1].start_address){
+				PhysicalMemoryRange temp = ram_range_buffer[j];
+				ram_range_buffer[j] = ram_range_buffer[j+1];
+				ram_range_buffer[j+1] = temp;
+			}
+
+	//align to 4k
+	for(int i = 0; i < next_range; i++){
+		if(ram_range_buffer[i].size == 0) continue;
+		//if the start address it's not aligned round it up to next page
+		if(ram_range_buffer[i].start_address % PAGE_SIZE != 0){
+			uint64_t to_add = -(ram_range_buffer[i].start_address % PAGE_SIZE) + PAGE_SIZE;
+			ram_range_buffer[i].start_address += to_add;
+			ram_range_buffer[i].size -= to_add;
+		}
+		//if the size is not aligned round it down
+		if(ram_range_buffer[i].size % PAGE_SIZE != 0){
+			ram_range_buffer[i].size -= ram_range_buffer[i].size % PAGE_SIZE;
+		}
+	}
+	
+	
+	FreePhysicalMemoryStruct ram_memory;
+	ram_memory.free_ranges = ram_range_buffer;
+	ram_memory.number_of_ranges = next_range;//next_range is used as a counter so we can use it to track the number of ranges
+	ram_ranges_number = ram_memory.number_of_ranges;
+	return ram_memory;
 }
 
 /*
@@ -126,6 +185,7 @@ uint64_t get_last_address(){
 	}
 	return last_addr;
 }
+
 
 PhysicalMemoryRange get_bootstage_indentity_mapped_RAM(){
 	//the value it's hardcoded, if the bootloader change the original identity_map then 

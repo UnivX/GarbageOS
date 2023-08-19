@@ -1,4 +1,5 @@
 #include "../../hal.h"
+#include <stdbool.h>
 
 inline uint8_t inb(uint16_t port)
 {
@@ -47,5 +48,10 @@ inline void disable_interrupts(){
 
 inline void halt(){
 	disable_interrupts();
-	asm volatile(".halt: hlt\n jmp .halt");
+	volatile bool wtrue = true;
+	while(wtrue){
+		asm volatile("hlt" : : : "memory");
+		wtrue = true;
+	}
+	return;
 }

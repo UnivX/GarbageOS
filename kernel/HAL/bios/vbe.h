@@ -18,6 +18,6 @@ typedef struct RGBAPixel{
 } __attribute__ ((packed)) RGBAPixel;
 
 /*if the size of the framebuffer is over the specified max_size_bytes of virtual mem space then it will return an invalid object*/
-VbeFrameBuffer init_frame_buffer(void* virtual_address, uint64_t max_size_bytes);
+VbeFrameBuffer init_frame_buffer();
 void fill_screen(VbeFrameBuffer framebuffer, RGBAPixel color);
 bool is_frame_buffer_valid(VbeFrameBuffer framebuffer);

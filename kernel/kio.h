@@ -24,7 +24,7 @@ typedef struct KioState{
 bool is_kio_initialized();
 void init_kio(DisplayInterface display, PSFFont font, Color background_color, Color font_color);
 void putchar(char c, bool flush);
-void print(char* str);
+void print(const char* str);
 void print_uint64_hex(uint64_t n);
 void print_uint64_dec(uint64_t n);
 void finalize_kio();

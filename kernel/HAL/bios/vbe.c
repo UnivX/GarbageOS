@@ -1,32 +1,26 @@
 #include <stddef.h>
 #include "vbe.h"
 #include "../../mem/memory.h"
+#include "../../mem/vmm.h"
 #include "../../hal.h"
 #include "../../kdefs.h"
 
 VbeFrameBuffer global_frame_buffer = {NULL, NULL, NULL};
 
-VbeFrameBuffer init_frame_buffer(void* virtual_address, uint64_t max_size_bytes){
-	if(virtual_address == NULL)
-		kpanic(VBE_ERROR);
-
+VbeFrameBuffer init_frame_buffer(){
 	VbeFrameBuffer invalid_buffer = {NULL, NULL, NULL};
 	VbeFrameBuffer framebuffer;
 	framebuffer.vbe_mode_info =  get_bootloader_data()->vbe_mode_info;
-	framebuffer.vaddr = virtual_address;
 	framebuffer.paddr = (void*)((uint64_t)framebuffer.vbe_mode_info->framebuffer);
 
 	uint64_t bytes_count = ((framebuffer.vbe_mode_info->bpp/8)*framebuffer.vbe_mode_info->height*framebuffer.vbe_mode_info->width);
-	uint64_t pages_count = bytes_count/PAGE_SIZE + (bytes_count%PAGE_SIZE != 0);//round up
+	if(bytes_count % PAGE_SIZE != 0)
+		bytes_count += PAGE_SIZE - (bytes_count%PAGE_SIZE);
+	//uint64_t pages_count = bytes_count/PAGE_SIZE + (bytes_count%PAGE_SIZE != 0);//round up
 
-	if(bytes_count > max_size_bytes)
+	framebuffer.vaddr = memory_map(framebuffer.paddr, bytes_count, PAGE_WRITABLE | PAGE_PRESENT | PAGE_WRITE_THROUGH);
+	if(framebuffer.vaddr == NULL)
 		return invalid_buffer;
-																				
-	for(uint64_t i = 0; i < pages_count; i++){
-		void* vaddr_to_map = (void*)(framebuffer.vaddr+(i*PAGE_SIZE));
-		void* paddr_to_map = (void*)(framebuffer.paddr+(i*PAGE_SIZE));
-		mmap(vaddr_to_map, paddr_to_map, PAGE_WRITABLE | PAGE_PRESENT | PAGE_WRITE_THROUGH);
-	}
 	return framebuffer;
 }
 
@@ -35,7 +29,7 @@ bool is_frame_buffer_valid(VbeFrameBuffer framebuffer){
 }
 
 void init_vbe_display(){
-	global_frame_buffer = init_frame_buffer(VBE_VADDR, VBE_VADDR_SIZE);
+	global_frame_buffer = init_frame_buffer();
 }
 
 void finalize_vbe_display(){

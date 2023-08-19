@@ -243,7 +243,7 @@ call_kernel:
 	mov [exp_memory_map_arr_ptr], rbx
 
 	mov rbx, bootloader_exported_data
-	mov [0x0600], rbx
+	mov [0x1000], rbx
 
 	mov rax, [kernel_entry_point]
 	jmp rax

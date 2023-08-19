@@ -9,8 +9,12 @@
 #include "mem/vmm.h"
 #include "kio.h"
 #include "elf.h"
+
 //TODO: test the PIC
 void page_fault(InterruptInfo info){
+	//if(!is_kio_initialized())
+		kpanic(UNRECOVERABLE_PAGE_FAULT);
+
 	uint64_t error = info.error;
 	print("[PAGE FAULT] ");
 
@@ -108,7 +112,7 @@ void heap_stress_test(){
 			kfree(allocated[next_idx]);
 			allocated[next_idx] = NULL;
 		}
-		rand = (rand ^ (0x672890f1+(~rand ^ 0xb69f5cca + n_of_free)) + rand-(~n_of_free) % (rand ^ 0x672890f1));
+		rand = (rand ^ (0x672890f1+(~(rand ^ 0xb69f5cca) + n_of_free)) + rand-(~n_of_free) % (rand ^ 0x672890f1));
 		times--;
 	}
 	for(int i = 0; i < max; i++)
@@ -124,15 +128,73 @@ void heap_stress_test(){
 	}
 }
 
-uint64_t kmain(){
+void initialize(){
+	//at the moment we have a minimal no interrupt basic paging mapping set up from the bootloader
 	init_frame_allocator();
 	set_up_firmware_layer();
 	set_up_arch_layer();
 	init_interrupts();
-	enable_interrupts();
+	
+	//SETUP MEMORY
+	void* old_paging_struct = get_active_paging_structure();
+	
+	//create new paging_structure;
+	void* new_paging_struct = create_empty_kernel_paging_structure();
+	initialize_kernel_VMM(new_paging_struct);
+	
+	//identity map memory
+	FreePhysicalMemoryStruct physical_mem = get_ram_space();
+	for(uint64_t i = 0; i < physical_mem.number_of_ranges; i++){
+		uint64_t paddr_start = physical_mem.free_ranges[i].start_address;
+		uint64_t size = physical_mem.free_ranges[i].size;
+
+		//if null size skipp
+		if(size == 0)
+			continue;
+
+		//remove the NULL page
+		if(paddr_start == 0){
+			paddr_start = PAGE_SIZE;
+			size -= PAGE_SIZE;
+		}
+		KASSERT(identity_map((void*)paddr_start, size));
+	}
+	
+	//map the kernel elf image
+	ElfHeader* header = get_kernel_image();
+	KASSERT(elf_validate_header(header));
+
+	const uint64_t max_segments = 32;
+	ElfLoadedSegment segments[max_segments];
+	uint64_t number_of_segments = elf_get_number_of_loaded_entries(header);
+	KASSERT(number_of_segments <= max_segments);
+	elf_get_loaded_entries(header, segments, max_segments);
+	for(uint64_t i = 0; i < number_of_segments; i++){
+		uint16_t segments_flags = PAGE_PRESENT;
+
+		uint64_t ssize = segments[i].size;
+		if(ssize % PAGE_SIZE != 0)
+			ssize += PAGE_SIZE - (ssize % PAGE_SIZE);
+
+		if(segments[i].writeable)
+			segments_flags |= PAGE_WRITABLE;
+
+		KASSERT(copy_memory_mapping_from_paging_structure(old_paging_struct, segments[i].vaddr, ssize, segments_flags));
+	}
+
+
+	//remove old bootloader paging_structure;
+	set_active_paging_structure(new_paging_struct);
+	delete_paging_structure(old_paging_struct);
+	return;
+}
+
+uint64_t kmain(){
+	initialize();
 	install_default_interrupt_handler(interrupt_print);
 	install_interrupt_handler(0xe, page_fault);
 	install_interrupt_handler(0xd, general_protection_fault);
+	enable_interrupts();
 
 
 	DisplayInterface display = get_firmware_display();
@@ -144,16 +206,13 @@ uint64_t kmain(){
 	PSFFont font = get_default_PSF_font();
 	init_kio(display, font, background_color, font_color);
 	print_elf_info();
-	for(int i = 0; i < 3; i++){
-		print_uint64_dec(i);
-		print(" - I'm a kernel\n");
-	}
 
 	print("free allocable memory(MB): ");
 	print_uint64_dec(get_number_of_free_frames() * PAGE_SIZE / MB);
 	print("\n");
 
-	kheap_init(alloc_kernel_heap(), KERNEL_HEAP_SIZE);
+	void* kheap_mem = allocate_kernel_virtual_memory(KERNEL_HEAP_SIZE, VM_TYPE_HEAP);
+	kheap_init(kheap_mem, KERNEL_HEAP_SIZE);
 
 	print("free allocable memory after heap allocation(MB): ");
 	print_uint64_dec(get_number_of_free_frames() * PAGE_SIZE / MB);
@@ -162,6 +221,7 @@ uint64_t kmain(){
 	heap_stress_test();
 
 	asm volatile("int $0x40");
+	debug_print_kernel_vmm();
 
 	return 0;
 }

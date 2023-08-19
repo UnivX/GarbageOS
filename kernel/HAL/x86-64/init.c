@@ -67,11 +67,15 @@ void set_up_gdt_tss(){
 	//TSS
 	init_tss(tss);
 	//alloc an emergency stack for an NMI or DOUBLE FAULT
-	tss->ist1 = alloc_stack(INTERRUPT_STACK_SIZE);
+	
+	//TODO:
+	//tss->ist1 = alloc_stack(INTERRUPT_STACK_SIZE);
 
 	//rsp0-1-2 -> stack used when a lower CPL call higher CPL code
 	//if it jumps to ring 0 will be used rsp0, ring1 -> rsp1 and so on
-	void* cpl_change_stack = alloc_stack(SYSTEM_CALL_STACK_SIZE);//we use only one stack per physical thread
+	//TODO:
+	//void* cpl_change_stack = alloc_stack(SYSTEM_CALL_STACK_SIZE);//we use only one stack per physical thread
+	void* cpl_change_stack = NULL;
 	tss->rsp0 = cpl_change_stack;
 	tss->rsp1 = cpl_change_stack;
 	tss->rsp2 = cpl_change_stack;
@@ -102,7 +106,9 @@ void set_up_idt(){
 
 		if (i == DOUBLE_FAULT_INT_NUMBER || i == NMI_INT_NUMBER){
 			//if it's an abort interrupt wich needs to have a good known stack
-			ist = 1;
+			//TODO:
+			//ist = 1;
+			ist = 0;
 		}
 		if(i < 32){
 			//if it's an exception set it as a trap gate
@@ -125,7 +131,6 @@ void init_cpu(){
 }
 
 void set_up_arch_layer(){
-	identity_map_memory();
 	init_cpu();
 	is_initialized = true;
 }

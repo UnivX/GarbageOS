@@ -1,4 +1,5 @@
 //heap implementation
+#pragma once
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -42,27 +43,9 @@ typedef struct HeapChunkHeader{
 } HeapChunkHeader;
 //the chunk must be at least 16 byte
 
-static uint64_t get_fixed_heap_chunk_size(HeapChunkHeader* header);
-static bool get_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
-static void set_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
-static void reset_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
-static HeapChunkHeader* get_next_heap_chunk_header(HeapChunkHeader* header);
-static HeapChunkHeader* get_prev_heap_chunk_header(HeapChunkHeader* header);
-static void* get_heap_chunk_user_data(HeapChunkHeader* header);
-static void set_bucket_list_next(HeapChunkHeader* header, HeapChunkHeader* next);
-static HeapChunkHeader* get_bucket_list_next(HeapChunkHeader* header);
-static void set_bucket_list_prev(HeapChunkHeader* header, HeapChunkHeader* prev);
-static HeapChunkHeader* get_bucket_list_prev(HeapChunkHeader* header);
-static bool is_heap_chunk_corrupted(HeapChunkHeader* header);
-static HeapChunkHeader* get_heap_chunk_from_user_data(void* user_data);
-
 typedef struct HeapChunkFooter{
 	uint64_t size;//at the moment it doesnt store any flag
 }HeapChunkFooter;
-
-static uint64_t get_fixed_heap_chunk_size_from_footer(HeapChunkFooter* footer);
-static HeapChunkHeader* get_heap_chunk_header_from_footer(HeapChunkFooter* footer);
-static HeapChunkFooter* get_heap_chunk_footer_from_header(HeapChunkHeader* header);
 
 typedef struct Heap{
 	bool enable_growth;//flag that enables the heap to grow when needed
@@ -73,23 +56,11 @@ typedef struct Heap{
 	HeapChunkHeader* free_buckets[BUCKETS_COUNT];//multiple linked list of free chunks, each bucket has its size
 } Heap;
 
-static void initizialize_heap(Heap* heap, void* start, uint64_t size);
-static void enable_heap_growth(Heap* heap);
-static bool is_first_chunk_of_heap(Heap* heap, HeapChunkHeader* header);
-static bool is_last_chunk_of_heap(HeapChunkHeader* header);
-static void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header);
-static void merge_with_next_and_prev_chunk(Heap* heap, HeapChunkHeader* header);
 //if not splittable return false
 //the requested chunk will be that pointed by header argument
 //the spare one will be the next to the requested chunk
-static bool split_chunk_and_alloc(Heap* heap, HeapChunkHeader* header, uint64_t first_chunk_size);
-static void remove_from_bucket_list(Heap* heap, HeapChunkHeader* header);
-static void add_to_bucket_list(Heap* heap, HeapChunkHeader* header);
-static int get_bucket_index_from_size(uint64_t size);
-static int get_bucket_index_from_header(HeapChunkHeader* header);
-static void alloc_chunk(Heap* heap, HeapChunkHeader* header);
 
-
+bool is_kheap_initialzed();
 void kheap_init(void* start_heap_addr, uint64_t size);
 void* kmalloc(size_t size);
 void kfree(void* ptr);

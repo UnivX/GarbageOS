@@ -11,7 +11,20 @@ inline void memory_fence(){
  *Paging structure:
  *PML4[512] -> PDPT[512] -> PDT[512] -> PT[512]
  */
-uint64_t* get_page_table_entry(volatile void* vaddr){
+
+void* get_active_paging_structure(){
+	uint64_t cr3;
+	asm("mov %%cr3, %0" : "=r"(cr3) : : "cc");
+	cr3 &= 0xfffffffffffff000;
+	return (void*)cr3;
+}
+
+void set_active_paging_structure(volatile void* paging_structure){
+	uint64_t cr3 = (uint64_t)paging_structure;
+	asm volatile("mov %0, %%cr3" : : "r"(cr3) : "cc");
+}
+
+uint64_t* get_page_table_entry(volatile void* paging_structure, volatile void* vaddr){
 	uint64_t vaddr_i = (uint64_t)vaddr;
 
 	//9 bits each
@@ -20,12 +33,7 @@ uint64_t* get_page_table_entry(volatile void* vaddr){
 	uint16_t PDT_index = (vaddr_i >> 21) & 0x1ff;
 	uint16_t PT_index = (vaddr_i >> 12) & 0x1ff;
 
-	//get cr3
-	uint64_t cr3;
-	asm("mov %%cr3, %0" : "=r"(cr3) : : "cc");
-	cr3 &= 0xfffffffffffff000;
-
-	uint64_t* PML4 = (uint64_t*)cr3;
+	uint64_t* PML4 = (uint64_t*)paging_structure;
 	if((PML4[PML4_index] & PAGE_PRESENT)== 0){
 		uint64_t new_frame = (uint64_t)alloc_frame()&0x0000fffffffff000;
 		memset((void*)new_frame, 0, PAGE_SIZE);
@@ -55,8 +63,8 @@ static inline void invalidate_TLB(volatile void* vaddr){
 	asm("invlpg (%0)" : : "r"(vaddr));
 }
 
-void mmap(volatile void* vaddr, volatile void* paddr, uint16_t flags){
-	uint64_t* table_entry = get_page_table_entry(vaddr);
+void paging_map(volatile void* paging_structure, volatile void* vaddr, volatile void* paddr, uint16_t flags){
+	uint64_t* table_entry = get_page_table_entry(paging_structure, vaddr);
 
 	flags |= PAGE_PRESENT;
 	flags &= 0xfff;
@@ -68,15 +76,15 @@ void mmap(volatile void* vaddr, volatile void* paddr, uint16_t flags){
 	invalidate_TLB(vaddr);
 }
 
-void invalidate_mmap(volatile void* vaddr){
-	uint64_t* table_entry = get_page_table_entry(vaddr);
+void invalidate_paging_mapping(volatile void* paging_structure, volatile void* vaddr){
+	uint64_t* table_entry = get_page_table_entry(paging_structure, vaddr);
 	uint64_t new_value = *table_entry;
 	new_value &= ~(uint64_t)(PAGE_PRESENT);//disable PAGE_PRESENT bit
 	*table_entry = new_value;
 	invalidate_TLB(vaddr);
 }
 
-PagingMapState get_physical_address(volatile void* vaddr){
+PagingMapState get_physical_address(volatile void* paging_structure, volatile void* vaddr){
 	/* NOTE:
 	 * because the retrive of the physical address doesn't needs
 	 * to allocate eventualy needed frames for the paging structure
@@ -92,12 +100,7 @@ PagingMapState get_physical_address(volatile void* vaddr){
 	uint16_t PDT_index = (vaddr_i >> 21) & 0x1ff;
 	uint16_t PT_index = (vaddr_i >> 12) & 0x1ff;
 
-	//get cr3
-	uint64_t cr3;
-	asm("mov %%cr3, %0" : "=r"(cr3));
-	cr3 &= 0xfffffffffffff000;
-
-	uint64_t* PML4 = (uint64_t*)cr3;
+	uint64_t* PML4 = (uint64_t*)paging_structure;
 	if((PML4[PML4_index] & PAGE_PRESENT)== 0)
 		return mmap_not_present;
 
@@ -130,14 +133,48 @@ PagingMapState get_physical_address(volatile void* vaddr){
 	return result;
 }
 
-void identity_map_memory(){
-	FreePhysicalMemoryStruct memory = free_mem_bootloader();
-	for(size_t i = 0; i < memory.number_of_ranges; i++){
-		uint64_t start_addr = memory.free_ranges[i].start_address;
-		uint64_t pages = memory.free_ranges[i].size / PAGE_SIZE;
-		for(uint64_t j = 0; j < pages; j++){
-			uint64_t paddr_i = start_addr + (j*PAGE_SIZE);
-			mmap((void*)paddr_i, (void*)paddr_i, PAGE_WRITABLE);
+void* create_empty_kernel_paging_structure(){
+	uint64_t* paging_structure = alloc_frame();
+	memset(paging_structure, 0, PAGE_SIZE);
+
+	for(int i = 0; i < 512; i++){
+		uint64_t new_frame = (uint64_t)alloc_frame()&0x0000fffffffff000;
+		memset((void*)new_frame, 0, PAGE_SIZE);
+		paging_structure[i] =  new_frame | PAGE_PRESENT | PAGE_WRITABLE;
+	}
+
+	return paging_structure;
+}
+
+void delete_map_table(uint64_t* map_table, uint8_t page_level){
+	//PML4 	== 4
+	//PDPT 	== 3
+	//PDT  	== 2
+	//PT 	== 1
+	if(page_level == 0)
+		return;
+	for(uint16_t i = 0; i < 512 && page_level != 1; i++){
+		if((map_table[i] & PAGE_PRESENT) != 0){
+			uint64_t* inner_map_table = (uint64_t*)(map_table[i]&0x0000fffffffff000);
+			delete_map_table(inner_map_table, page_level-1);
 		}
+	}
+	dealloc_frame((void*)map_table);
+}
+
+void delete_paging_structure(void* paging_structure){
+	delete_map_table((uint64_t*)paging_structure, 4);
+}
+
+void copy_paging_structure_mapping_no_page_invalidation(void* src_paging_structure, void* dst_paging_structure, void* start_vaddr, uint64_t size_bytes, uint16_t new_flags){
+	void* vaddr = start_vaddr;
+	for(uint64_t i = 0; i < size_bytes; i += PAGE_SIZE){
+		uint64_t* src_entry = get_page_table_entry(src_paging_structure, vaddr);
+		uint64_t* dst_entry = get_page_table_entry(dst_paging_structure, vaddr);
+		if(new_flags == 0)
+			*dst_entry = *src_entry;
+		else
+			*dst_entry = (*src_entry & 0x0000fffffffff000) | new_flags;
+		vaddr += PAGE_SIZE;
 	}
 }
