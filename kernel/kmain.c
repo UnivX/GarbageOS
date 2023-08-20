@@ -12,7 +12,7 @@
 
 //TODO: test the PIC
 void page_fault(InterruptInfo info){
-	//if(!is_kio_initialized())
+	if(!is_kio_initialized())
 		kpanic(UNRECOVERABLE_PAGE_FAULT);
 
 	uint64_t error = info.error;
@@ -211,7 +211,7 @@ uint64_t kmain(){
 	print_uint64_dec(get_number_of_free_frames() * PAGE_SIZE / MB);
 	print("\n");
 
-	void* kheap_mem = allocate_kernel_virtual_memory(KERNEL_HEAP_SIZE, VM_TYPE_HEAP);
+	void* kheap_mem = allocate_kernel_virtual_memory(KERNEL_HEAP_SIZE, VM_TYPE_HEAP, 8*GB, 16*KB);
 	kheap_init(kheap_mem, KERNEL_HEAP_SIZE);
 
 	print("free allocable memory after heap allocation(MB): ");
