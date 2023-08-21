@@ -65,3 +65,4 @@ void kheap_init(void* start_heap_addr, uint64_t size);
 void* kmalloc(size_t size);
 void kfree(void* ptr);
 uint64_t get_number_of_chunks_of_kheap();
+bool is_kheap_corrupted();

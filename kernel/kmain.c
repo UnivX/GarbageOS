@@ -41,6 +41,8 @@ void page_fault(InterruptInfo info){
 	print("\n[PAGE FAULT ADDRESS] ");
 	print_uint64_hex(cr2);
 	print("\n");
+	if(cr2 == 0)
+		print("[PAGE FAULT] NULL POINTER DEREFERENCE\n");
 	kpanic(UNRECOVERABLE_PAGE_FAULT);
 }
 
@@ -91,7 +93,7 @@ void print_elf_info(){
 }
 
 void heap_stress_test(){
-	
+	uint64_t start_number_of_chunks = get_number_of_chunks_of_kheap();
 	const int max = 100;
 	void* allocated[max];
 	size_t sizes[5] = {32, 34, 512, 129, 16};
@@ -119,12 +121,19 @@ void heap_stress_test(){
 		if(allocated[i] != NULL)
 			kfree(allocated[i]);
 
-	if(get_number_of_chunks_of_kheap() == 1)
+	bool heap_corrupted = is_kheap_corrupted();
+	if(get_number_of_chunks_of_kheap() == start_number_of_chunks && !heap_corrupted)
 		print("HEAP stress test PASSED\n");
 	else{
-		print("HEAP stress test FAILED / heap chunks: ");
+		print("HEAP stress test FAILED / heap chunks from ");
 		print_uint64_dec(get_number_of_chunks_of_kheap());
+		print(" to ");
+		print_uint64_dec(start_number_of_chunks);
 		print("\n");
+		print("HEAP IS ");
+		if(!heap_corrupted)
+			print("NOT ");
+		print("CORRUPTED\n");
 	}
 }
 
@@ -134,6 +143,7 @@ void initialize(){
 	set_up_firmware_layer();
 	set_up_arch_layer();
 	init_interrupts();
+	enable_interrupts();
 	
 	//SETUP MEMORY
 	void* old_paging_struct = get_active_paging_structure();
@@ -157,7 +167,7 @@ void initialize(){
 			paddr_start = PAGE_SIZE;
 			size -= PAGE_SIZE;
 		}
-		KASSERT(identity_map((void*)paddr_start, size));
+		KASSERT(identity_map((void*)paddr_start, size) != NULL);
 	}
 	
 	//map the kernel elf image
@@ -179,13 +189,18 @@ void initialize(){
 		if(segments[i].writeable)
 			segments_flags |= PAGE_WRITABLE;
 
-		KASSERT(copy_memory_mapping_from_paging_structure(old_paging_struct, segments[i].vaddr, ssize, segments_flags));
+		KASSERT(copy_memory_mapping_from_paging_structure(old_paging_struct, segments[i].vaddr, ssize, segments_flags) != NULL);
 	}
 
 
 	//remove old bootloader paging_structure;
 	set_active_paging_structure(new_paging_struct);
 	delete_paging_structure(old_paging_struct);
+	
+	//allocate the heap
+	VMemHandle kheap_mem = allocate_kernel_virtual_memory(KERNEL_HEAP_SIZE, VM_TYPE_HEAP, 8*GB, 16*KB);
+	kheap_init(get_vmem_addr(kheap_mem), KERNEL_HEAP_SIZE);
+
 	return;
 }
 
@@ -194,8 +209,6 @@ uint64_t kmain(){
 	install_default_interrupt_handler(interrupt_print);
 	install_interrupt_handler(0xe, page_fault);
 	install_interrupt_handler(0xd, general_protection_fault);
-	enable_interrupts();
-
 
 	DisplayInterface display = get_firmware_display();
 	display.init();
@@ -211,8 +224,6 @@ uint64_t kmain(){
 	print_uint64_dec(get_number_of_free_frames() * PAGE_SIZE / MB);
 	print("\n");
 
-	void* kheap_mem = allocate_kernel_virtual_memory(KERNEL_HEAP_SIZE, VM_TYPE_HEAP, 8*GB, 16*KB);
-	kheap_init(kheap_mem, KERNEL_HEAP_SIZE);
 
 	print("free allocable memory after heap allocation(MB): ");
 	print_uint64_dec(get_number_of_free_frames() * PAGE_SIZE / MB);
@@ -223,5 +234,6 @@ uint64_t kmain(){
 	asm volatile("int $0x40");
 	debug_print_kernel_vmm();
 
+	finalize_kio();
 	return 0;
 }

@@ -60,16 +60,16 @@ void initialize_kernel_VMM(void* paging_structure){
 	second_desc->prev = first_desc;
 	second_desc->next = NULL;
 	
-	kernel_vmm.task_vm_list_head = first_desc;
+	kernel_vmm.vm_list_head = first_desc;
 	kernel_vmm.kernel_paging_structure = paging_structure;
 }
 
-bool identity_map(void* paddr, uint64_t size){
+VMemHandle identity_map(void* paddr, uint64_t size){
 	KASSERT(paddr != NULL);
 	KASSERT(size % PAGE_SIZE == 0);
 	KASSERT((uint64_t)paddr % PAGE_SIZE == 0);
 
-	VirtualMemoryDescriptor *descriptor = kernel_vmm.task_vm_list_head;
+	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
 
 	//find the correct descriptor
 	while(descriptor->next != NULL && (descriptor->start_vaddr + descriptor->size_bytes) <= paddr)
@@ -78,10 +78,10 @@ bool identity_map(void* paddr, uint64_t size){
 	//if the descriptor doesnt contain the requested range then return false
 	//(there cannot be two contiguos consecutive descriptors
 	if(paddr < descriptor->start_vaddr || paddr+size > descriptor->start_vaddr+descriptor->size_bytes)
-		return false;
+		return NULL;
 
 	if(descriptor->type != VM_TYPE_IDENTITY_MAP_FREE)
-		return false;
+		return NULL;
 
 	VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor(descriptor, paddr, size);
 	KASSERT((uint64_t)cutted_descriptor->start_vaddr % PAGE_SIZE == 0);
@@ -90,10 +90,10 @@ bool identity_map(void* paddr, uint64_t size){
 		paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 	}
 	
-	return true;
+	return (VMemHandle)cutted_descriptor;
 }
 
-void* memory_map(void* paddr, uint64_t size, uint16_t page_flags){
+VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
 
 #ifdef MEMORY_MAP_PADDING
 	size += MEMORY_MAP_PADDING*2;
@@ -103,7 +103,7 @@ void* memory_map(void* paddr, uint64_t size, uint16_t page_flags){
 	KASSERT(size % PAGE_SIZE == 0);
 	KASSERT((uint64_t)paddr % PAGE_SIZE == 0);
 
-	VirtualMemoryDescriptor *descriptor = kernel_vmm.task_vm_list_head;
+	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
 
 	while( !(descriptor->size_bytes >= size && descriptor->type == VM_TYPE_FREE) && descriptor->next != NULL)
 		descriptor = descriptor->next;
@@ -127,11 +127,11 @@ void* memory_map(void* paddr, uint64_t size, uint16_t page_flags){
 		paging_map(kernel_vmm.kernel_paging_structure, vaddr+i, paddr+i, page_flags | PAGE_PRESENT);
 	}
 
-	return get_no_padding_start_addr(cutted_descriptor);
+	return (VMemHandle)cutted_descriptor;
 }
 
-bool copy_memory_mapping_from_paging_structure(void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags){
-	VirtualMemoryDescriptor *descriptor = kernel_vmm.task_vm_list_head;
+VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags){
+	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
 
 	//find the correct descriptor
 	while(descriptor->next != NULL && (descriptor->start_vaddr + descriptor->size_bytes) <= vaddr)
@@ -140,10 +140,10 @@ bool copy_memory_mapping_from_paging_structure(void* src_paging_structure, void*
 	//if the descriptor doesnt contain the requested range then return false
 	//(there cannot be two contiguos consecutive descriptors
 	if(vaddr < descriptor->start_vaddr || vaddr+size > descriptor->start_vaddr+descriptor->size_bytes)
-		return false;
+		return NULL;
 
 	if(descriptor->type != VM_TYPE_FREE)
-		return false;
+		return NULL;
 	
 	VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor(descriptor, vaddr, size);
 	KASSERT((uint64_t)cutted_descriptor->start_vaddr % PAGE_SIZE == 0);
@@ -153,10 +153,10 @@ bool copy_memory_mapping_from_paging_structure(void* src_paging_structure, void*
 		page_flags = 0;
 
 	copy_paging_structure_mapping_no_page_invalidation(src_paging_structure, kernel_vmm.kernel_paging_structure, vaddr, size, page_flags);
-	return true;
+	return (VMemHandle)cutted_descriptor;
 }
 
-void* allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding){
+VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding){
 	size += lower_padding + upper_padding;
 	KASSERT(size % PAGE_SIZE == 0);
 	bool is_valid = type != VM_TYPE_IDENTITY_MAP_FREE && type != VM_TYPE_IDENTITY_MAP;
@@ -166,7 +166,7 @@ void* allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint
 		return NULL;
 	}
 
-	VirtualMemoryDescriptor *descriptor = kernel_vmm.task_vm_list_head;
+	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
 
 	while( !(descriptor->size_bytes >= size && descriptor->type == VM_TYPE_FREE) && descriptor->next != NULL)
 		descriptor = descriptor->next;
@@ -187,7 +187,59 @@ void* allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint
 		paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 		vaddr += PAGE_SIZE;
 	}
-	return get_no_padding_start_addr(cutted_descriptor);
+	return (VMemHandle)cutted_descriptor;
+}
+
+bool deallocate_kernel_virtual_memory(VMemHandle handle){
+	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+	//get the free type based on the vaddr
+	VirtualMemoryType free_type = desc->start_vaddr < IDENTITY_MAP_VMEM_END ? VM_TYPE_IDENTITY_MAP_FREE : VM_TYPE_FREE;
+	
+	//set the range as a free one
+	desc->type = free_type;
+	desc->lower_padding = 0;
+	desc->upper_padding = 0;
+
+	//if the prev range is of a free type then set the desc to the prev
+	if(desc->prev != NULL)
+		if(desc->prev->type == free_type)
+			desc = desc->prev;
+
+	//if the next is not free return
+	if(desc->next->type != free_type)
+		return true;
+	
+	//calculate the total new size
+	//and deallocate the free ranges
+	uint64_t total_size = desc->size_bytes;
+	VirtualMemoryDescriptor* last_range = desc->next;
+	while(last_range != NULL){
+		if(last_range->type != free_type)
+			break;
+		total_size += last_range->size_bytes;
+
+		VirtualMemoryDescriptor* to_deallocate = last_range;
+		last_range = last_range->next;
+		deallocate_vmm_descriptor(to_deallocate);
+	}
+
+	//set the new linked list
+	desc->size_bytes = total_size;
+	desc->next = last_range;
+	if(last_range != NULL)
+		last_range->prev = desc;
+
+	//in theory it's not needed to refresh the head of the linked list
+	return true;
+}
+
+uint64_t get_vmem_size(VMemHandle handle){
+	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+	return get_no_padding_size(desc);
+}
+void* get_vmem_addr(VMemHandle handle){
+	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+	return get_no_padding_start_addr(desc);
 }
 
 static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descriptor, void* start, uint64_t size){
@@ -200,25 +252,6 @@ static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descript
 	if(descriptor->start_vaddr == start && descriptor->size_bytes == size){
 		return descriptor;
 	}else if(descriptor->start_vaddr == start){
-		/*
-		VirtualMemoryDescriptor *new_descriptor = allocate_vmem_descriptor();
-
-		uint64_t new_size = descriptor->size_bytes - size;
-		descriptor->size_bytes = size;
-		new_descriptor->size_bytes = new_size;
-		new_descriptor->type = descriptor->type;
-		new_descriptor->start_vaddr = descriptor->start_vaddr + descriptor->size_bytes;
-
-		//set the linked list
-		//old_prev -> descriptor -> new_descriptor -> old_next
-		descriptor->prev = old_prev;
-		descriptor->next = new_descriptor;
-		new_descriptor->next = old_next;
-		new_descriptor->prev = descriptor;
-		KASSERT(descriptor->start_vaddr+descriptor->size_bytes == new_descriptor->start_vaddr);
-
-		return descriptor;
-		*/
 		return cut_descriptor_start(descriptor, size);
 	}else if(descriptor->start_vaddr + descriptor->size_bytes == start + size){
 		VirtualMemoryDescriptor *new_descriptor = allocate_vmem_descriptor();
@@ -326,8 +359,8 @@ static VirtualMemoryDescriptor* cut_descriptor_start(VirtualMemoryDescriptor* de
 }
 
 static void update_head(){
-	while(kernel_vmm.task_vm_list_head->prev != NULL)
-		kernel_vmm.task_vm_list_head = kernel_vmm.task_vm_list_head->prev;
+	while(kernel_vmm.vm_list_head->prev != NULL)
+		kernel_vmm.vm_list_head = kernel_vmm.vm_list_head->prev;
 }
 
 static uint64_t get_no_padding_size(const VirtualMemoryDescriptor *d){
@@ -372,7 +405,7 @@ void debug_print_kernel_vmm(){
 	print("\n");
 	print("virtual adresses:\n");
 
-	for(VirtualMemoryDescriptor* d = kernel_vmm.task_vm_list_head; d != NULL; d = d->next){
+	for(VirtualMemoryDescriptor* d = kernel_vmm.vm_list_head; d != NULL; d = d->next){
 		print_uint64_hex((uint64_t)d->start_vaddr);
 		print(" / ");
 		print_uint64_hex((uint64_t)d->start_vaddr + d->size_bytes);

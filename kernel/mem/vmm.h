@@ -36,17 +36,22 @@ typedef struct VirtualMemoryDescriptor{
 bool is_kernel_virtual_memory(VirtualMemoryDescriptor descriptor);
 
 typedef struct VirtualMemoryManager{
-	VirtualMemoryDescriptor* task_vm_list_head;
+	VirtualMemoryDescriptor* vm_list_head;
 	void* kernel_paging_structure;
 	//future mutex
 } VirtualMemoryManager;
 
+typedef VirtualMemoryDescriptor* VMemHandle;
+
 void initialize_kernel_VMM(void* paging_structure);
-bool identity_map(void* paddr, uint64_t size);
-void* memory_map(void* paddr, uint64_t size, uint16_t page_flags);
-void* allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding);
+VMemHandle identity_map(void* paddr, uint64_t size);
+VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags);
+VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding);
+VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags);
+bool deallocate_kernel_virtual_memory(VMemHandle handle);
+uint64_t get_vmem_size(VMemHandle handle);
+void* get_vmem_addr(VMemHandle handle);
 //if page_flags == COPY_FLAGS_ON_MMAP_COPY then the flags are simply copied
-bool copy_memory_mapping_from_paging_structure(void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags);
 void debug_print_kernel_vmm();
 //return the new cutted descriptor
 

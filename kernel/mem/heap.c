@@ -101,6 +101,8 @@ static bool is_heap_chunk_corrupted(HeapChunkHeader* header){
 	uint64_t size2 = get_fixed_heap_chunk_size(header);
 	if(size1 != size2)
 		return true;
+	if(size1 < HEAP_CHUNK_MIN_SIZE)
+		return true;
 	if((footer->size & 7) != 0)
 		return true;
 	return false;
@@ -188,6 +190,7 @@ static void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header){
 	uint64_t header_size = get_fixed_heap_chunk_size(header);
 	uint64_t new_size = next_size + header_size + sizeof(HeapChunkFooter) + sizeof(HeapChunkHeader);
 	KASSERT(new_size % 8 == 0);
+	KASSERT(new_size >= HEAP_CHUNK_MIN_SIZE);
 	
 	//set the new header
 	header->size = new_size;
@@ -240,6 +243,7 @@ static void merge_with_next_and_prev_chunk(Heap* heap, HeapChunkHeader* header){
 	new_size += get_fixed_heap_chunk_size(next);
 	new_size += get_fixed_heap_chunk_size(prev);
 	KASSERT(new_size % 8 == 0);
+	KASSERT(new_size >= HEAP_CHUNK_MIN_SIZE);
 
 	//set the new_header
 	prev->size = new_size;
@@ -484,4 +488,34 @@ void kfree(void* ptr){
 
 uint64_t get_number_of_chunks_of_kheap(){
 	return kheap.number_of_chunks;
+}
+
+bool is_kheap_corrupted(){
+	if(kheap.size % PAGE_SIZE != 0)
+		return true;
+	if((uint64_t)kheap.start % PAGE_SIZE != 0)
+		return true;
+
+	void* start = kheap.start;
+	void* end = kheap.start + kheap.size;
+
+	HeapChunkHeader* header = (HeapChunkHeader*)start;
+	uint64_t empirical_number_of_chunks = 0;
+	while(header != NULL){
+		empirical_number_of_chunks++;
+		if(empirical_number_of_chunks > kheap.number_of_chunks)
+			return true;
+		if((void*)header < start || (void*)(header)+header->size > end)
+			return true;
+		if(is_heap_chunk_corrupted(header))
+			return true;
+		if(is_last_chunk_of_heap(header))
+			header = NULL;
+		else
+			header = get_next_heap_chunk_header(header);
+	}
+	if(empirical_number_of_chunks != kheap.number_of_chunks)
+		return true;
+
+	return false;
 }
