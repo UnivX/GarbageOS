@@ -42,7 +42,6 @@ uint16_t elf_get_number_of_loaded_entries(ElfHeader* header){
 	return counter;
 }
 
-//TODO: test the function
 void elf_get_loaded_entries(ElfHeader* header, ElfLoadedSegment* out_buffer, size_t buffer_size){
 	uint32_t buffer_index = 0;
 	uint16_t ph_counter = 0;//program header counter

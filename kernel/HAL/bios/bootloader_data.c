@@ -198,3 +198,24 @@ void* get_kernel_image(){
 	BootLoaderData* boot_data = get_bootloader_data();
 	return boot_data->elf_image;
 }
+
+uint64_t get_bootloader_memory_usage(){
+	BootLoaderData* boot_data = get_bootloader_data();
+	FrameData* frame_data = boot_data->frame_allocator_data;
+	MemoryMapItem* frame_alloc_map_item = (MemoryMapItem*)((uint64_t)frame_data->memory_map_item_offset);
+	uint64_t boot_frame_allocator_size = frame_data->first_frame_address - frame_alloc_map_item->base_addr;
+	
+	uint64_t bootloader_reserved_mem_size = 0;
+	MemoryMapItem* map_items = boot_data->map_items;
+	for(uint32_t i = 0; i < *boot_data->map_items_count; i++){
+		if(map_items[i].type == MEMORY_MAP_FREE && map_items[i].size != 0){
+			if(map_items[i].base_addr < 1*MB){
+				uint64_t end_addr = map_items[i].base_addr + map_items[i].size;
+				if(end_addr > 1*MB)
+					end_addr = 1*MB;
+				bootloader_reserved_mem_size += end_addr- map_items[i].base_addr;
+			}
+		}
+	}
+	return bootloader_reserved_mem_size+boot_frame_allocator_size;
+}

@@ -7,7 +7,6 @@
 #include "kdefs.h"
 #include "hal.h"
 #include "psf.h"
-#define BUFFER_SIZE 1024*768
 
 typedef struct KioState{
 	DisplayInterface display;
@@ -15,7 +14,7 @@ typedef struct KioState{
 	uint64_t screen_size;
 	Color background_color, font_color;
 	PSFFont font;
-	Pixel buffer[BUFFER_SIZE];
+	Pixel *buffer;
 } KioState;
 
 //the display interface needs to be initialized

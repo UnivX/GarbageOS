@@ -1,10 +1,12 @@
 #include "kio.h"
+#include "mem/heap.h"
 
 KioState kio_state;
 static bool is_initialized = false;
 
 void init_kio(DisplayInterface display, PSFFont font, Color background_color, Color font_color){
-	KASSERT(display.info.height*display.info.width <= BUFFER_SIZE) is_initialized = true;
+	is_initialized = true;
+	kio_state.buffer = kmalloc(display.info.height*display.info.width*sizeof(Pixel));
 	kio_state.display = display;
 	kio_state.font_color = font_color;
 	kio_state.background_color = background_color;
@@ -62,6 +64,7 @@ void finalize_kio(){
 	if(!is_initialized)
 		kpanic(KIO_ERROR);
 	kio_state.display.finalize();
+	kfree(kio_state.buffer);
 }
 
 void print_uint64_hex(uint64_t n){

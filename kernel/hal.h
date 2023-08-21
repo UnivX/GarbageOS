@@ -21,6 +21,7 @@
  * HAL arch specific defines
  */
 #define ENDIANESS LITTLE_ENDIAN
+#define PAGE_FAULT_INTERRUPT 0xe
 
 /*--------------x86-64 + BIOS default defines--------------*/
 /*paging common flags*/ #define PAGE_PRESENT 1
@@ -92,6 +93,7 @@ bool is_hal_arch_initialized();
  */
 FreePhysicalMemoryStruct free_mem_bootloader();
 FreePhysicalMemoryStruct get_ram_space();
+uint64_t get_bootloader_memory_usage();
 //return the last address for the last usable register size chunk of data
 uint64_t get_last_address();
 uint64_t get_total_usable_RAM_size();

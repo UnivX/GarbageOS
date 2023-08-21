@@ -1,8 +1,11 @@
 #include "vmm.h"
 #include "../hal.h"
 #include "frame_allocator.h"
+#include "../interrupt/interrupts.h"
 #include "heap.h"
 #include "../kio.h"
+
+
 
 static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descriptor, void* start, uint64_t size);
 static VirtualMemoryDescriptor* cut_descriptor_start(VirtualMemoryDescriptor* descriptor, uint64_t size);
@@ -12,6 +15,7 @@ static void update_head();
 static const char* get_vm_type_string(VirtualMemoryType vm_type);
 static uint64_t get_no_padding_size(const VirtualMemoryDescriptor* d);
 static void* get_no_padding_start_addr(const VirtualMemoryDescriptor* d);
+void page_fault(InterruptInfo info);
 
 VirtualMemoryManager kernel_vmm;
 
@@ -41,6 +45,7 @@ static void deallocate_vmm_descriptor(VirtualMemoryDescriptor* d){
 }
 
 void initialize_kernel_VMM(void* paging_structure){
+	install_interrupt_handler(0xe, page_fault);
 	VirtualMemoryDescriptor *first_desc = allocate_vmem_descriptor();
 	VirtualMemoryDescriptor *second_desc = allocate_vmem_descriptor();
 
@@ -414,4 +419,39 @@ void debug_print_kernel_vmm(){
 		print("\n");
 	}
 	print("-----kernel VMM state end-----\n");
+}
+
+void page_fault(InterruptInfo info){
+	if(!is_kio_initialized())
+		kpanic(UNRECOVERABLE_PAGE_FAULT);
+
+	uint64_t error = info.error;
+	print("[PAGE FAULT] ");
+
+	if(error & 1<<1)
+		print("(write) ");
+	else
+		print("(read) ");
+
+	if(!(error & 1))
+		print("page not present ");
+	else if(error & 1<<3)
+		print("reserved write ");
+	if(error & 1 << 4)
+		print("caused by instruction fetch ");
+	if(error & 1 <<5)
+		print("caused by Protection Key ");
+	if(error & 1 <<6)
+		print("caused by Shadow Stack Access ");
+	if(error & 1 <<15)
+		print("caused by SGX ");
+
+	uint64_t cr2;
+	asm("mov %%cr2, %0" : "=r"(cr2) : : "cc");
+	print("\n[PAGE FAULT ADDRESS] ");
+	print_uint64_hex(cr2);
+	print("\n");
+	if(cr2 == 0)
+		print("[PAGE FAULT] NULL POINTER DEREFERENCE\n");
+	kpanic(UNRECOVERABLE_PAGE_FAULT);
 }
