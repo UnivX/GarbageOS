@@ -168,3 +168,9 @@ void frame_stack_push(FrameStack* stack, uint64_t new_value){
 uint64_t get_number_of_free_frames(){
 	return frame_allocator.free_frames;
 }
+
+uint64_t get_frame_allocator_mem_overhead(){
+	if(!is_frame_stack_valid(frame_allocator.frame_stack))
+		kpanic(FRAME_ALLOCATOR_ERROR);
+	return frame_allocator.frame_stack.max_size_bytes;
+}

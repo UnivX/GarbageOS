@@ -12,6 +12,8 @@ Virtual Memory Manager(VMM)
 #define COPY_FLAGS_ON_MMAP_COPY 0
 #define MEMORY_MAP_PADDING PAGE_SIZE*4
 
+//#define HALT_PAGE_FAULT
+
 typedef enum VirtualMemoryType{
 	VM_TYPE_FREE,
 	VM_TYPE_IDENTITY_MAP_FREE,

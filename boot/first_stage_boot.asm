@@ -15,6 +15,11 @@ bits 16
 first_stage:
 	;no interrupts and clear direction flag
 	cli
+	;set the segments
+    xor ax, ax
+    mov ss, ax
+    mov ds, ax
+	mov es, ax
 	;copy the mbr to the relocation address
     cld
 	mov si, 0x7c00
@@ -25,9 +30,6 @@ first_stage:
 	jmp 0x0000:relocated_code
 relocated_code:
 	;set up segmentes and stack
-    xor ax, ax
-    mov ss, ax
-    mov ds, ax
     mov ax, STACK_BOTTOM_OFFSET  ;the stack is located after the second part in RAM
     mov bp, ax
     add ax, STACK_SIZE

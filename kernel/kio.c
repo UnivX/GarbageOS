@@ -37,7 +37,7 @@ void print(const char* str){
 void putchar(char c, bool flush){
 	if(kio_state.next_x + kio_state.font.header->width >= kio_state.display.info.width || c == '\n'){
 		//next line
-		if(kio_state.next_y+kio_state.font.header->height >= kio_state.display.info.height){
+		if(kio_state.next_y+kio_state.font.header->height*2 >= kio_state.display.info.height){
 			kio_state.next_y -= kio_state.font.header->height;
 			uint64_t offset = kio_state.display.info.width*kio_state.font.header->height;
 			for(unsigned int i = offset; i < kio_state.screen_size; i++)

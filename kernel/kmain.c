@@ -73,15 +73,36 @@ uint64_t kmain(){
 	init_kio(display, font, background_color, font_color);
 	print_elf_info();
 
+
+	asm volatile("int $0x40");
+	heap_stress_test();
+	debug_print_kernel_vmm();
+	print("\n");
+
 	uint64_t kernel_bootloader_overhead = get_total_usable_RAM_size()-(get_number_of_free_frames()*PAGE_SIZE);
 	print("kernel + bootloader memory overhead: ");
 	print_uint64_dec(kernel_bootloader_overhead / MB);
 	print(" MiB\n");
 
-	heap_stress_test();
+	print("kernel paging memory overhead: ");
+	print_uint64_dec(get_paging_mem_overhead(get_active_paging_structure()) / MB);
+	print(" MiB\n");
 
-	asm volatile("int $0x40");
-	debug_print_kernel_vmm();
+	print("kernel frame allocator overhead: ");
+	print_uint64_dec(get_frame_allocator_mem_overhead() / MB);
+	print(" MiB\n");
+
+	print("kernel heap size: ");
+	print_uint64_dec(KERNEL_HEAP_SIZE / MB);
+	print(" MiB\n");
+
+	print("kernel stack size: ");
+	print_uint64_dec(KERNEL_STACK_SIZE / MB);
+	print(" MiB\n");
+
+	print("System Total RAM: ");
+	print_uint64_dec(get_total_usable_RAM_size() / MB);
+	print(" MiB\n");
 
 	finalize_kio();
 	return 0;

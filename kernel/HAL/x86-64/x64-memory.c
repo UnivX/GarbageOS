@@ -178,3 +178,27 @@ void copy_paging_structure_mapping_no_page_invalidation(void* src_paging_structu
 		vaddr += PAGE_SIZE;
 	}
 }
+
+void count_map_tables_frames(uint64_t* map_table, uint8_t page_level, uint64_t* counter){
+	//PML4 	== 4
+	//PDPT 	== 3
+	//PDT  	== 2
+	//PT 	== 1
+
+	if(page_level == 0)
+		return;
+	for(uint16_t i = 0; i < 512 && page_level != 1; i++){
+		if((map_table[i] & PAGE_PRESENT) != 0){
+			uint64_t* inner_map_table = (uint64_t*)(map_table[i]&0x0000fffffffff000);
+			count_map_tables_frames(inner_map_table, page_level-1, counter);
+		}
+	}
+	(*counter)++;
+}
+
+uint64_t get_paging_mem_overhead(void* paging_structure){
+	uint64_t counter = 0;
+	count_map_tables_frames((void*)paging_structure, 4, &counter);
+	return counter*PAGE_SIZE;
+}
+

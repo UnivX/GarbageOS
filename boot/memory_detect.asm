@@ -20,7 +20,7 @@ get_memory_map:
 
 	xor ebx, ebx
 .gmm_read_entry:
-	mov dword [ds:di+20], 0;set the Extended Attributes as 0 if it is
+	mov dword [ds:di+20], 1;set the Extended Attributes as 1 if it is
 	;not set by the bios call
 	mov edx, 0x534D4150
 	xor eax, eax

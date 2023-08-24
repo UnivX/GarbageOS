@@ -92,10 +92,11 @@ find_allocatable_memory:
 	jne .next_item
 
 
-	;if the bit 0/1 of the Extended Attributes is set
+	;if the bit 0/1 of the Extended Attributes are setted incorrectly
 	;if so it is not usable
 	mov eax, [ds:si+20]
 	and eax, 3;b11
+	cmp eax, 1
 	jnz .next_item
 
 	;if the base address is not containable in a 32bit pointer then skip it

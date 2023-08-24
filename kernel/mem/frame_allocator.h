@@ -34,3 +34,4 @@ void init_frame_allocator();
 void* alloc_frame();
 void dealloc_frame(void* paddr);
 uint64_t get_number_of_free_frames();
+uint64_t get_frame_allocator_mem_overhead();

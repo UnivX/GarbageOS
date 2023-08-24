@@ -77,6 +77,7 @@ void* get_active_paging_structure();
 
 void* create_empty_kernel_paging_structure();
 void delete_paging_structure(void* paging_structure);
+uint64_t get_paging_mem_overhead(void* paging_structure);
 //if new_flags == 0 then the flags are the same
 void copy_paging_structure_mapping_no_page_invalidation(void* src_paging_structure, void* dst_paging_structure, void* start_vaddr, uint64_t size_bytes, uint16_t new_flags);
 

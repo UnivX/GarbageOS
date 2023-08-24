@@ -422,6 +422,9 @@ void debug_print_kernel_vmm(){
 }
 
 void page_fault(InterruptInfo info){
+#ifdef HALT_PAGE_FAULT
+	halt();
+#endif
 	if(!is_kio_initialized())
 		kpanic(UNRECOVERABLE_PAGE_FAULT);
 

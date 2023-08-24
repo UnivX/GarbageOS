@@ -225,9 +225,9 @@ bits 16
 	mov ax, 640
 	mov bx, 480
 	mov cx, 32
-	call try_load_mode
-	cmp ax, 0
-	je vbe_good
+	;call try_load_mode
+	;cmp ax, 0
+	;je vbe_good
 
 
 	;---TRY LOAD 1024X768 32 DEPTH---
