@@ -37,7 +37,7 @@ ${OBJDIR}/%.o : %.s
 $(OBJS): | $(OBJDIR)
 
 ${OBJDIR}:
-	mkdir ${OBJDIR}
+	mkdir -p ${OBJDIR}
 
 clean:
 	rm ${EXEC} ${OBJS} krnl.sym

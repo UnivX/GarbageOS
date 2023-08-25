@@ -16,12 +16,12 @@ Virtual Memory Manager(VMM)
 
 typedef enum VirtualMemoryType{
 	VM_TYPE_FREE,
-	VM_TYPE_IDENTITY_MAP_FREE,
 	VM_TYPE_STACK,
 	VM_TYPE_HEAP,
 	VM_TYPE_GENERAL_USE,
-	VM_TYPE_MEMORY_MAPPING,
+	VM_TYPE_IDENTITY_MAP_FREE,
 	VM_TYPE_IDENTITY_MAP,
+	VM_TYPE_MEMORY_MAPPING
 } VirtualMemoryType;
 
 typedef struct VirtualMemoryDescriptor{
@@ -32,7 +32,7 @@ typedef struct VirtualMemoryDescriptor{
 	VirtualMemoryType type;
 	struct VirtualMemoryDescriptor* next;
 	struct VirtualMemoryDescriptor* prev;
-	bool is_from_heap;
+	bool is_from_heap;//is this from the heap allocator or from the bump allocator?
 } VirtualMemoryDescriptor;
 
 bool is_kernel_virtual_memory(VirtualMemoryDescriptor descriptor);
@@ -50,6 +50,23 @@ VMemHandle identity_map(void* paddr, uint64_t size);
 VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags);
 VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding);
 VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags);
+
+/*
+this function is available only for these Virtual Memory types
+	VM_TYPE_STACK,
+	VM_TYPE_HEAP,
+	VM_TYPE_GENERAL_USE
+*/
+bool try_expand_vmem_top(VMemHandle handle, uint64_t size);
+
+/*
+this function is available only for these Virtual Memory types
+	VM_TYPE_STACK,
+	VM_TYPE_HEAP,
+	VM_TYPE_GENERAL_USE
+*/
+bool try_expand_vmem_bottom(VMemHandle handle, uint64_t size);
+
 bool deallocate_kernel_virtual_memory(VMemHandle handle);
 uint64_t get_vmem_size(VMemHandle handle);
 void* get_vmem_addr(VMemHandle handle);

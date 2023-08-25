@@ -13,7 +13,7 @@ fi
 sudo -u $real_user sh sub_build.sh
 
 mount -t vfat -o loop,offset=512 build/bootable.iso build/iso
-mkdir build/iso/sys/
+mkdir -p build/iso/sys/
 cp kernel/krnl.bin build/iso/sys
 cd build/iso/sys
 echo 'this message is being printed from a file as a test' > t.txt

@@ -164,7 +164,7 @@ VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure,
 VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding){
 	size += lower_padding + upper_padding;
 	KASSERT(size % PAGE_SIZE == 0);
-	bool is_valid = type != VM_TYPE_IDENTITY_MAP_FREE && type != VM_TYPE_IDENTITY_MAP;
+	bool is_valid = type != VM_TYPE_IDENTITY_MAP_FREE && type != VM_TYPE_IDENTITY_MAP && type != VM_TYPE_MEMORY_MAPPING;
 
 	if(!is_valid){
 		kpanic(VMM_ERROR);
@@ -235,6 +235,58 @@ bool deallocate_kernel_virtual_memory(VMemHandle handle){
 		last_range->prev = desc;
 
 	//in theory it's not needed to refresh the head of the linked list
+	return true;
+}
+
+bool try_expand_vmem_top(VMemHandle handle, uint64_t size){
+	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+
+	if(desc->type != VM_TYPE_HEAP && desc->type != VM_TYPE_STACK && desc->type != VM_TYPE_GENERAL_USE)
+		return false;
+
+	if(size % PAGE_SIZE != 0)
+		size += PAGE_SIZE - (size % PAGE_SIZE);
+
+	if(size > desc->upper_padding)
+		return false;
+	
+	//map the memory to some free frames
+	void* vaddr = get_no_padding_start_addr(desc) + get_no_padding_size(desc);
+	for(uint64_t i = 0; i < size; i+=PAGE_SIZE){
+		KASSERT(vaddr < (desc->start_vaddr + desc->size_bytes));
+		paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
+		vaddr += PAGE_SIZE;
+	}
+
+	//set the new padding
+	desc->upper_padding -= size;
+	
+	return true;
+}
+
+bool try_expand_vmem_bottom(VMemHandle handle, uint64_t size){
+	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+
+	if(desc->type != VM_TYPE_HEAP && desc->type != VM_TYPE_STACK && desc->type != VM_TYPE_GENERAL_USE)
+		return false;
+
+	if(size % PAGE_SIZE != 0)
+		size += PAGE_SIZE - (size % PAGE_SIZE);
+
+	if(size > desc->lower_padding)
+		return false;
+
+	//map the memory to some free frames
+	void* vaddr = get_no_padding_start_addr(desc)-size;
+	for(uint64_t i = 0; i < size; i+=PAGE_SIZE){
+		KASSERT(vaddr < (desc->start_vaddr));
+		paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
+		vaddr += PAGE_SIZE;
+	}
+
+	//set the new padding
+	desc->lower_padding -= size;
+
 	return true;
 }
 

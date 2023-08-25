@@ -22,7 +22,7 @@ void heap_stress_test(){
 			kfree(allocated[next_idx]);
 			allocated[next_idx] = NULL;
 		}
-		rand = (rand ^ (0x672890f1+(~(rand ^ 0xb69f5cca) + n_of_free)) + rand-(~n_of_free) % (rand ^ 0x672890f1));
+		rand = (rand ^ ((0x672890f1+(~(rand ^ 0xb69f5cca) + n_of_free)) + rand-(~n_of_free) % (rand ^ 0x672890f1)));
 		times--;
 	}
 	for(int i = 0; i < max; i++)

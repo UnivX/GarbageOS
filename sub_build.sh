@@ -17,8 +17,8 @@ fi
 
 if [ ! -f "build/iso" ]
 then
-	mkdir build
-	mkdir build/iso
+	mkdir -p build
+	mkdir -p build/iso
 fi
 
 SIZE=71520
