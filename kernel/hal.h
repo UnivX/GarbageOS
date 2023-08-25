@@ -24,7 +24,8 @@
 #define PAGE_FAULT_INTERRUPT 0xe
 
 /*--------------x86-64 + BIOS default defines--------------*/
-/*paging common flags*/ #define PAGE_PRESENT 1
+/*paging common flags*/ 
+#define PAGE_PRESENT 1
 #define PAGE_WRITABLE 2
 #define PAGE_CACHE_DISABLE (1 << 4)
 #define PAGE_WRITE_THROUGH (1 << 3)

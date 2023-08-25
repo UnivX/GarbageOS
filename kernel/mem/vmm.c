@@ -468,6 +468,9 @@ void debug_print_kernel_vmm(){
 		print_uint64_hex((uint64_t)d->start_vaddr + d->size_bytes);
 		print(" -> ");
 		print(get_vm_type_string(d->type));
+		print(" [");
+		print_uint64_dec(get_no_padding_size(d)/MB);
+		print(" MiB]");
 		print("\n");
 	}
 	print("-----kernel VMM state end-----\n");

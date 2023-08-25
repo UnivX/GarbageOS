@@ -18,8 +18,9 @@ static uint64_t get_fixed_heap_chunk_size_from_footer(HeapChunkFooter* footer);
 static HeapChunkHeader* get_heap_chunk_header_from_footer(HeapChunkFooter* footer);
 static HeapChunkFooter* get_heap_chunk_footer_from_header(HeapChunkHeader* header);
 
-static void initizialize_heap(Heap* heap, void* start, uint64_t size);
+static void initialize_heap(Heap* heap, VMemHandle vmem);
 static void enable_heap_growth(Heap* heap);
+static bool try_increase_wilderness_chunk(Heap* heap, uint64_t min_size_increase);
 static bool is_first_chunk_of_heap(Heap* heap, HeapChunkHeader* header);
 static bool is_last_chunk_of_heap(HeapChunkHeader* header);
 static void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header);
@@ -132,7 +133,9 @@ static uint64_t get_fixed_heap_chunk_size_from_footer(HeapChunkFooter* footer){
 	return footer->size & (~7);
 }
 
-static void initizialize_heap(Heap* heap, void* start, uint64_t size){
+static void initialize_heap(Heap* heap, VMemHandle vmem){
+	void* start = get_vmem_addr(vmem);
+ 	uint64_t size = get_vmem_size(vmem);
 	//assert the memory is aligned
 	KASSERT(size > 128);
 	KASSERT(((uint64_t)start) % 8 == 0);
@@ -145,6 +148,7 @@ static void initizialize_heap(Heap* heap, void* start, uint64_t size){
 	heap->start = start;
 	heap->size = size;
 	heap->number_of_chunks = 1;
+	heap->heap_vmem = vmem;
 
 	//create a big chunk
 	uint64_t user_data_size = size - sizeof(HeapChunkFooter) - sizeof(HeapChunkHeader);
@@ -165,8 +169,42 @@ static bool is_first_chunk_of_heap(Heap* heap, HeapChunkHeader* header){
 static bool is_last_chunk_of_heap(HeapChunkHeader* header){
 	return get_heap_chunk_flag(header, HEAP_WILDERNESS_CHUNK);
 }
+
 static void enable_heap_growth(Heap* heap){
 	heap->enable_growth = true;
+}
+
+static bool try_increase_wilderness_chunk(Heap* heap, uint64_t min_size_increase){
+	//compute the increase size
+	min_size_increase += sizeof(HeapChunkFooter)+sizeof(HeapChunkHeader);
+	uint64_t growth_size = KERNEL_HEAP_GROWTH_STEP;
+	if(growth_size < min_size_increase)
+		growth_size = min_size_increase;
+	//align to page size
+	if(growth_size % PAGE_SIZE != 0)
+		growth_size += PAGE_SIZE - (growth_size % PAGE_SIZE);
+
+	KASSERT(growth_size % PAGE_SIZE == 0);
+
+	if(!heap->enable_growth)
+		return false;
+
+	//try to increase the Virtual Memory
+	if(!try_expand_vmem_top(heap->heap_vmem, growth_size))
+		return false;
+	heap->size += growth_size;
+
+	//if we are here then we have an increased virtual memory
+	//we need to expand the wilderness_chunk
+	//aka change the header size and create a new footer
+	HeapChunkHeader* wilderness_chunk = heap->wilderness_chunk;
+	KASSERT(get_heap_chunk_flag(wilderness_chunk, HEAP_WILDERNESS_CHUNK));
+	//because the growth_size is page aligned is not necessary to preserve the flags in any way
+	wilderness_chunk->size += growth_size;
+	HeapChunkFooter* new_footer = get_heap_chunk_footer_from_header(wilderness_chunk);
+	KASSERT((void*)new_footer + sizeof(HeapChunkFooter) ==  heap->start + heap->size);
+	new_footer->size = wilderness_chunk->size & (~7);
+	return true;
 }
 
 static void merge_with_next_chunk(Heap* heap, HeapChunkHeader* header){
@@ -396,8 +434,11 @@ bool is_kheap_initialzed(){
 }
 
 Heap kheap;
-void kheap_init(void* start_heap_addr, uint64_t size){
-	initizialize_heap(&kheap, start_heap_addr, size);
+void kheap_init(){
+	//assert that the HEAP minimum alignment is a divisor of PAGE_SIZE
+	KASSERT(PAGE_SIZE % HEAP_ALIGNMENT == 0);
+	VMemHandle kheap_mem = allocate_kernel_virtual_memory(KERNEL_HEAP_SIZE, VM_TYPE_HEAP, KERNEL_HEAP_VMM_MAX_SIZE, KERNEL_HEAP_VMM_LOW_SECURITY_PADDING);
+	initialize_heap(&kheap, kheap_mem);
 	kheap_initialized = true;
 }
 
@@ -429,12 +470,22 @@ void* kmalloc(size_t size){
 		found_chunk = kheap.wilderness_chunk;
 	}
 
-	if(get_fixed_heap_chunk_size(found_chunk) == size)
+	bool is_found_wilderness = get_heap_chunk_flag(found_chunk, HEAP_WILDERNESS_CHUNK);
+	if(get_fixed_heap_chunk_size(found_chunk) == size && !is_found_wilderness){
+		KASSERT(!is_found_wilderness);
 		alloc_chunk(&kheap, found_chunk);
-	else{
-		//if it's not possibile to split it then the wilderness chunk isn't big enough
-		if(!split_chunk_and_alloc(&kheap, found_chunk, size))
-			kpanic(HEAP_OUT_OF_MEM);
+	}else{
+		//if it's not possibile to split it then we have a wilderness_chunk that isn't big enough
+		//or we have a wilderness_chunk that is equal to the requested size
+		KASSERT(is_found_wilderness);
+		if(!split_chunk_and_alloc(&kheap, found_chunk, size)){
+			if(!try_increase_wilderness_chunk(&kheap, size)){
+				kpanic(HEAP_OUT_OF_MEM);
+			}
+			//if still isnt possible to split it then we have finished the memory / vmem adresses
+			if(!split_chunk_and_alloc(&kheap, found_chunk, size))
+				kpanic(HEAP_OUT_OF_MEM);
+		}
 	}
 	
 	return get_heap_chunk_user_data(found_chunk);
@@ -488,6 +539,14 @@ void kfree(void* ptr){
 
 uint64_t get_number_of_chunks_of_kheap(){
 	return kheap.number_of_chunks;
+}
+
+uint64_t get_kheap_total_size(){
+	return kheap.size;
+}
+
+void enable_kheap_growth(){
+	enable_heap_growth(&kheap);
 }
 
 bool is_kheap_corrupted(){

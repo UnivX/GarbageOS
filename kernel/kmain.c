@@ -92,8 +92,12 @@ uint64_t kmain(){
 	print_uint64_dec(get_frame_allocator_mem_overhead() / MB);
 	print(" MiB\n");
 
-	print("kernel heap size: ");
+	print("kernel heap start size: ");
 	print_uint64_dec(KERNEL_HEAP_SIZE / MB);
+	print(" MiB\n");
+
+	print("kernel heap actual size: ");
+	print_uint64_dec(get_kheap_total_size() / MB);
 	print(" MiB\n");
 
 	print("kernel stack size: ");

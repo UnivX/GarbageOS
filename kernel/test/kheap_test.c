@@ -25,6 +25,10 @@ void heap_stress_test(){
 		rand = (rand ^ ((0x672890f1+(~(rand ^ 0xb69f5cca) + n_of_free)) + rand-(~n_of_free) % (rand ^ 0x672890f1)));
 		times--;
 	}
+
+	void* huge_memory_allocation = kmalloc(7*MB);
+	kfree(huge_memory_allocation);
+
 	for(int i = 0; i < max; i++)
 		if(allocated[i] != NULL)
 			kfree(allocated[i]);

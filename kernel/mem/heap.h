@@ -5,12 +5,14 @@
 #include <stddef.h>
 #include "../hal.h"
 #include "../kdefs.h"
+#include "vmm.h"
 
 #define HEAP_FREE_CHUNK 1
 #define HEAP_WILDERNESS_CHUNK 2
 #define HEAP_FLAG3 4
 #define BUCKETS_COUNT 128
 #define HEAP_CHUNK_MIN_SIZE 16
+#define HEAP_ALIGNMENT 8
 #define HEAP_DEBUG
 #define HEAP_CHUNK_SPLIT_OVERHEAD sizeof(HeapChunkHeader) + sizeof(HeapChunkFooter)
 
@@ -48,6 +50,7 @@ typedef struct HeapChunkFooter{
 }HeapChunkFooter;
 
 typedef struct Heap{
+	VMemHandle heap_vmem;
 	bool enable_growth;//flag that enables the heap to grow when needed
 	void* start;
 	uint64_t size;
@@ -61,8 +64,10 @@ typedef struct Heap{
 //the spare one will be the next to the requested chunk
 
 bool is_kheap_initialzed();
-void kheap_init(void* start_heap_addr, uint64_t size);
+void kheap_init();
 void* kmalloc(size_t size);
 void kfree(void* ptr);
 uint64_t get_number_of_chunks_of_kheap();
 bool is_kheap_corrupted();
+uint64_t get_kheap_total_size();
+void enable_kheap_growth();

@@ -72,8 +72,10 @@ void* kinit(){
 	delete_paging_structure(old_paging_struct);
 	
 	//allocate the heap
-	VMemHandle kheap_mem = allocate_kernel_virtual_memory(KERNEL_HEAP_SIZE, VM_TYPE_HEAP, 16*KB, 8*GB);
-	kheap_init(get_vmem_addr(kheap_mem), KERNEL_HEAP_SIZE);
+	kheap_init();
+
+	//enable heap growth
+	enable_kheap_growth();
 	
 	//allocate stack
 	VMemHandle stack_mem = allocate_kernel_virtual_memory(KERNEL_STACK_SIZE, VM_TYPE_STACK, 8*GB, 16*KB);

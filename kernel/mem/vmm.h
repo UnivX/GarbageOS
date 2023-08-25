@@ -74,9 +74,3 @@ void* get_vmem_addr(VMemHandle handle);
 void debug_print_kernel_vmm();
 //return the new cutted descriptor
 
-/*
-//allocate a new kernel stack
-//return the stack top pointer
-void* alloc_stack(uint64_t size);
-void* alloc_kernel_heap();
-*/
