@@ -1,6 +1,5 @@
 #pragma once
 #include <stdint.h>
-#include "../../mem/memory.h"
 #include "../../kdefs.h"
 #include "../../hal.h"
 

@@ -1,6 +1,5 @@
 #include "x64-memory.h"
 #include "../../hal.h"
-#include "../../mem/memory.h"
 #include "../../mem/frame_allocator.h"
 
 inline void memory_fence(){

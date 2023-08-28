@@ -1,6 +1,5 @@
 #include <stddef.h>
 #include "vbe.h"
-#include "../../mem/memory.h"
 #include "../../mem/vmm.h"
 #include "../../hal.h"
 #include "../../kdefs.h"
@@ -18,7 +17,7 @@ VbeFrameBuffer init_frame_buffer(){
 		bytes_count += PAGE_SIZE - (bytes_count%PAGE_SIZE);
 	//uint64_t pages_count = bytes_count/PAGE_SIZE + (bytes_count%PAGE_SIZE != 0);//round up
 
-	framebuffer.framebuffer_mapping = memory_map(framebuffer.paddr, bytes_count, PAGE_WRITABLE | PAGE_PRESENT | PAGE_WRITE_THROUGH);
+	framebuffer.framebuffer_mapping = memory_map(framebuffer.paddr, bytes_count, PAGE_WRITABLE | PAGE_PRESENT | PAGE_CACHE_DISABLE);
 	framebuffer.vaddr = get_vmem_addr(framebuffer.framebuffer_mapping);
 	if(framebuffer.vaddr == NULL)
 		return invalid_buffer;
@@ -76,10 +75,15 @@ void write_pixels_vbe_display(Pixel pixels[], uint64_t size){
 			dest_addr++;
 		}
 		*/
-		volatile Pixel* dest_addr = (volatile Pixel*)global_frame_buffer.vaddr;
+		Pixel* dest_addr = (Pixel*)global_frame_buffer.vaddr;
+		
+		/*
 		for(unsigned int i = 0; i < pixel_count; i++){
 			dest_addr[i] = pixels[i];
 		}
+		*/
+		
+		memcpy(dest_addr, pixels, pixel_count*sizeof(Pixel));
 	}else{
 		kpanic(VBE_ERROR);
 	}

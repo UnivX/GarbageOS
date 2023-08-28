@@ -65,13 +65,20 @@ bool write_PSF_char(PSFFont font, unsigned char c, Vector2i position, Pixel buff
 
 	Pixel font_pixel = color_to_pixel(font_color);
 	Pixel background_pixel = color_to_pixel(background_color);
+
+	Pixel fast_pixel_arr[2] = {background_pixel, font_pixel};
+
 	for(uint32_t y = 0; y < font.header->height; y++){
 		for(uint32_t x = 0; x < font.header->width; x++){
 			KASSERT((int64_t)(display_offset+x) < buffer_size.x*buffer_size.y);
-			if((glyph[x/8] << (x%8))&0x80)
+			bool is_font_pixel = (glyph[x/8] << (x%8))&0x80;
+			buffer[display_offset+x] = fast_pixel_arr[is_font_pixel];
+			/*
+			if(is_font_pixel)
 				buffer[display_offset+x] = font_pixel;
 			else
 				buffer[display_offset+x] = background_pixel;
+			*/
 		}
 
 		//next line to display

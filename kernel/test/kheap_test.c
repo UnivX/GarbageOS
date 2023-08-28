@@ -26,7 +26,9 @@ void heap_stress_test(){
 		times--;
 	}
 
-	void* huge_memory_allocation = kmalloc(7*MB);
+	const size_t huge_mem_size = 7*MB;
+	void* huge_memory_allocation = kmalloc(huge_mem_size);
+	memset(huge_memory_allocation, 0xff, huge_mem_size);
 	kfree(huge_memory_allocation);
 
 	for(int i = 0; i < max; i++)
