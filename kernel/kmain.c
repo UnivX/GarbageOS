@@ -66,7 +66,7 @@ uint64_t kmain(){
 	install_interrupt_handler(0xd, general_protection_fault);
 
 	DisplayInterface display = get_firmware_display();
-	display.init();
+	display.init(display);
 	Color background_color = {0,0,0,255};
 	Color font_color = {0,255,0,255};
 	PSFFont font = get_default_PSF_font();
@@ -78,6 +78,30 @@ uint64_t kmain(){
 	heap_stress_test();
 	debug_print_kernel_vmm();
 	print("\n");
+
+	print("MEMORY MAP:\n");
+	MemoryMapStruct memMap = get_memory_map();
+	for(size_t i = 0; i < memMap.number_of_ranges; i++){
+		const char* type = 							"[   UNKNOWN  ]";
+		switch(memMap.ranges[i].type){
+			case MEMORYMAP_BAD: type = 				"[     BAD    ]";
+				break;
+			case MEMORYMAP_USABLE: type = 			"[     RAM    ]";
+				break;
+			case MEMORYMAP_ACPI_NVS: type = 		"[  ACPI NVS  ]";
+				break;
+			case MEMORYMAP_RESERVED: type = 		"[  RESERVED  ]";
+				break;
+			case MEMORYMAP_ACPI_TABLE: type = 		"[ ACPI TABLE ]";
+				break;
+			case MEMORY_MAP_NON_VOLATILE: type = 	"[NON VOLATILE]";
+				break;
+		}
+		print(type);
+		print(" ");
+		print_uint64_hex(memMap.ranges[i].start_address);
+		print("\n");
+	}
 
 	uint64_t kernel_bootloader_overhead = get_total_usable_RAM_size()-(get_number_of_free_frames()*PAGE_SIZE);
 	print("kernel + bootloader memory overhead: ");

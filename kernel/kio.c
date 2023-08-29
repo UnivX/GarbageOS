@@ -30,7 +30,7 @@ void print(const char* str){
 		putchar(*str, false);
 		++str;
 	}
-	kio_state.display.write_pixels(kio_state.buffer, kio_state.screen_size);
+	kio_state.display.write_pixels(kio_state.display, kio_state.buffer, kio_state.screen_size);
 	return;
 }
 
@@ -56,14 +56,14 @@ void putchar(char c, bool flush){
 		kio_state.next_x += kio_state.font.header->width;
 	}
 	if(flush)
-		kio_state.display.write_pixels(kio_state.buffer, kio_state.screen_size);
+		kio_state.display.write_pixels(kio_state.display, kio_state.buffer, kio_state.screen_size);
 	return;
 }
 
 void finalize_kio(){
 	if(!is_initialized)
 		kpanic(KIO_ERROR);
-	kio_state.display.finalize();
+	kio_state.display.finalize(kio_state.display);
 	kfree(kio_state.buffer);
 }
 
@@ -91,7 +91,7 @@ void print_uint64_hex(uint64_t n){
 			putchar('0'+digit, false);
 		}
 	}
-	kio_state.display.write_pixels(kio_state.buffer, kio_state.screen_size);
+	kio_state.display.write_pixels(kio_state.display, kio_state.buffer, kio_state.screen_size);
 }
 void print_uint64_dec(uint64_t n){
 	const uint64_t buffer_size = 128;
@@ -116,5 +116,5 @@ void print_uint64_dec(uint64_t n){
 		int digit = buffer[i];
 		putchar('0'+digit, false);
 	}
-	kio_state.display.write_pixels(kio_state.buffer, kio_state.screen_size);
+	kio_state.display.write_pixels(kio_state.display, kio_state.buffer, kio_state.screen_size);
 }

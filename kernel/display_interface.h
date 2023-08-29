@@ -21,15 +21,16 @@ typedef struct DisplayInfo{
 	uint32_t width, height;
 	uint32_t depth;//in bits
 	DisplayType type;
+	void* implementation_data;
 } DisplayInfo;
 
 typedef struct DisplayInterface{
 	DisplayInfo info;
 	//initialize the display
-	void(*init)(void);
+	void(*init)(struct DisplayInterface interface);
 	//finalize the display
-	void(*finalize)(void);
+	void(*finalize)(struct DisplayInterface interface);
 	//write to screen the pixel buffer
-	void(*write_pixels)(Pixel pixels[], uint64_t size);
+	void(*write_pixels)(struct DisplayInterface interface, Pixel pixels[], uint64_t size);
 	
 } DisplayInterface;

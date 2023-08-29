@@ -219,3 +219,55 @@ uint64_t get_bootloader_memory_usage(){
 	}
 	return bootloader_reserved_mem_size+boot_frame_allocator_size;
 }
+
+MemoryMapRange memory_map_buff[MAX_PHYSICAL_MEMORY_RANGES];
+bool memory_map_buffered = false;
+MemoryMapStruct get_memory_map(){
+	BootLoaderData* boot_data = get_bootloader_data();
+	MemoryMapItem* map_items = boot_data->map_items;
+
+	MemoryMapStruct memory_map;
+	memory_map.ranges = memory_map_buff;
+	memory_map.number_of_ranges = *boot_data->map_items_count;
+
+	if(memory_map_buffered)
+		return memory_map;
+
+	for(size_t i = 0; i < memory_map.number_of_ranges; i++){
+		MemoryMapRange nrange;
+		nrange.start_address = map_items[i].base_addr;
+		nrange.size = map_items[i].size;
+		switch(map_items[i].acpi){
+			case BIOS_MEM_TYPE_USABLE:
+				nrange.type = MEMORYMAP_USABLE;
+				break;
+			case BIOS_MEM_TYPE_RESERVED:
+				nrange.type = MEMORYMAP_RESERVED;
+				break;
+			case BIOS_MEM_TYPE_ACPI_TABLE:
+				nrange.type = MEMORYMAP_ACPI_TABLE;
+				break;
+			case BIOS_MEM_TYPE_ACPI_NVS:
+				nrange.type = MEMORYMAP_ACPI_NVS;
+				break;
+			case BIOS_MEM_TYPE_BAD:
+				nrange.type = MEMORYMAP_BAD;
+				break;
+			default:
+				nrange.type = MEMORYMAP_RESERVED;
+				break;
+		}
+
+		//if the bit 0 is not setted it must be ignored(specified in the ACPI specification)
+		if((map_items[i].acpi & 1) == 0)
+			nrange.type = MEMORYMAP_RESERVED;
+		
+		//if the bit 1 is setted then it's non volatile memory in the physical address space
+		if((map_items[i].acpi & 2) != 0)
+			nrange.type = MEMORY_MAP_NON_VOLATILE;
+
+		memory_map.ranges[i] = nrange;
+	}
+	memory_map_buffered = true;
+	return memory_map;
+}

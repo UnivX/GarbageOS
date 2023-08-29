@@ -18,8 +18,14 @@ typedef struct MemoryMapItem{
 	uint64_t base_addr;
 	uint64_t size;
 	uint32_t type;
-	uint32_t acpi;
+	uint32_t acpi;//acpi 3.0 extended attribute field
 }__attribute__((packed)) MemoryMapItem;
+
+#define BIOS_MEM_TYPE_USABLE 1
+#define BIOS_MEM_TYPE_RESERVED 2
+#define BIOS_MEM_TYPE_ACPI_TABLE 3
+#define BIOS_MEM_TYPE_ACPI_NVS 4
+#define BIOS_MEM_TYPE_BAD 5
 
 typedef struct VbeModeInfoStructure {
 	uint16_t attributes;

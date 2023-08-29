@@ -45,3 +45,6 @@ typedef struct Vector2i{
 } Vector2i;
 
 #define KASSERT(x) if(!(x)) kpanic(FAILED_ASSERT);
+
+//suppress compiler unused warning
+#define UNUSED(x) (void)(x) 

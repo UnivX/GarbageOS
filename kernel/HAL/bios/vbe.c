@@ -28,7 +28,8 @@ bool is_frame_buffer_valid(VbeFrameBuffer framebuffer){
 	return !(framebuffer.paddr == NULL || framebuffer.vaddr == NULL || framebuffer.vbe_mode_info == NULL);
 }
 
-void init_vbe_display(){
+void init_vbe_display(DisplayInterface interface){
+	UNUSED(interface);
 	global_frame_buffer = init_frame_buffer();
 }
 
@@ -36,11 +37,13 @@ void destroy_frame_buffer(VbeFrameBuffer framebuffer){
 	deallocate_kernel_virtual_memory(framebuffer.framebuffer_mapping);
 }
 
-void finalize_vbe_display(){
+void finalize_vbe_display(DisplayInterface interface){
+	UNUSED(interface);
 	destroy_frame_buffer(global_frame_buffer);
 }
 
-void write_pixels_vbe_display(Pixel pixels[], uint64_t size){
+void write_pixels_vbe_display(DisplayInterface interface, Pixel pixels[], uint64_t size){
+	UNUSED(interface);
 	if(!is_frame_buffer_valid(global_frame_buffer))
 		kpanic(VBE_ERROR);
 
@@ -91,7 +94,7 @@ void write_pixels_vbe_display(Pixel pixels[], uint64_t size){
 
 DisplayInterface get_firmware_display(){
 	VbeModeInfoStructure* vbe_mode_info = get_bootloader_data()->vbe_mode_info;
-	DisplayInfo display_info = {vbe_mode_info->width, vbe_mode_info->height, vbe_mode_info->bpp, VBE_DISPLAY};
+	DisplayInfo display_info = {vbe_mode_info->width, vbe_mode_info->height, vbe_mode_info->bpp, VBE_DISPLAY, NULL};
 	DisplayInterface display_interface = {display_info, init_vbe_display,
 		finalize_vbe_display, write_pixels_vbe_display};
 	return display_interface;

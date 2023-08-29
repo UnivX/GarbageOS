@@ -45,6 +45,25 @@ typedef struct FreePhysicalMemoryStruct{
 	PhysicalMemoryRange* free_ranges;
 } FreePhysicalMemoryStruct;
 
+typedef enum {
+	MEMORYMAP_USABLE,
+	MEMORYMAP_RESERVED,
+	MEMORY_MAP_NON_VOLATILE,
+	MEMORYMAP_BAD,
+	MEMORYMAP_ACPI_TABLE,
+	MEMORYMAP_ACPI_NVS
+} MemoryMapType;
+
+typedef struct MemoryMapRange{
+	uint64_t start_address, size;
+	MemoryMapType type;
+} MemoryMapRange;
+
+typedef struct MemoryMapStruct{
+	MemoryMapRange* ranges;
+	size_t number_of_ranges;
+} MemoryMapStruct;
+
 /*
  * paging state associated with a virtual address
  * the paddr field is equal to INVALID_ADDR when there is no memory mapping to it
@@ -93,8 +112,13 @@ bool is_hal_arch_initialized();
  * used to initialize the frame allocator
  * the range may have a size of zero
  */
+//get the free memory usable for allocation
 FreePhysicalMemoryStruct free_mem_bootloader();
+
+//get all the ram (also return the memory used by the boot loader, kernel and other reserved data)
 FreePhysicalMemoryStruct get_ram_space();
+//get memory map from the firmware(uefi, bios, others??)
+MemoryMapStruct get_memory_map();
 uint64_t get_bootloader_memory_usage();
 //return the last address for the last usable register size chunk of data
 uint64_t get_last_address();
