@@ -75,4 +75,4 @@ typedef struct BootLoaderData{
 	void* elf_image;
 } __attribute__ ((packed)) BootLoaderData;
 
-BootLoaderData* get_bootloader_data();
+volatile BootLoaderData* get_bootloader_data();

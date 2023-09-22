@@ -3,8 +3,8 @@
 #include "../../hal.h"
 #include "../../kdefs.h"
 
-BootLoaderData* get_bootloader_data(){
-	return *(BootLoaderData**)(0x1000);
+volatile BootLoaderData* get_bootloader_data(){
+	return *(volatile BootLoaderData**)(0x1000);
 }
 
 PhysicalMemoryRange ram_range_buffer[MAX_PHYSICAL_MEMORY_RANGES];
@@ -18,7 +18,7 @@ FreePhysicalMemoryStruct get_ram_space(){
 		return ram_memory;
 	}
 
-	BootLoaderData* boot_data = get_bootloader_data();
+	volatile BootLoaderData* boot_data = get_bootloader_data();
 	int64_t next_range = 0;
 	MemoryMapItem* map_items = boot_data->map_items;
 
@@ -81,7 +81,7 @@ FreePhysicalMemoryStruct free_mem_bootloader(){
 		return free_memory;
 	}
 
-	BootLoaderData* boot_data = get_bootloader_data();
+	volatile BootLoaderData* boot_data = get_bootloader_data();
 	int64_t next_range = 0;
 	MemoryMapItem* map_items = boot_data->map_items;
 
@@ -159,7 +159,7 @@ FreePhysicalMemoryStruct free_mem_bootloader(){
 
 uint64_t get_total_usable_RAM_size(){
 	uint64_t total = 0;
-	BootLoaderData* boot_data = get_bootloader_data();
+	volatile BootLoaderData* boot_data = get_bootloader_data();
 	MemoryMapItem* map_items = boot_data->map_items;
 	for(uint32_t i = 0; i < *boot_data->map_items_count; i++){
 		if(map_items[i].type == MEMORY_MAP_FREE && map_items[i].size != 0){
@@ -172,7 +172,7 @@ uint64_t get_total_usable_RAM_size(){
 uint64_t get_last_address(){
 	uint64_t last_addr = 0;
 
-	BootLoaderData* boot_data = get_bootloader_data();
+	volatile BootLoaderData* boot_data = get_bootloader_data();
 	MemoryMapItem* map_items = boot_data->map_items;
 
 	for(uint32_t i = 0; i < *boot_data->map_items_count; i++){
@@ -195,12 +195,12 @@ PhysicalMemoryRange get_bootstage_indentity_mapped_RAM(){
 }
 
 void* get_kernel_image(){
-	BootLoaderData* boot_data = get_bootloader_data();
+	volatile BootLoaderData* boot_data = get_bootloader_data();
 	return boot_data->elf_image;
 }
 
 uint64_t get_bootloader_memory_usage(){
-	BootLoaderData* boot_data = get_bootloader_data();
+	volatile BootLoaderData* boot_data = get_bootloader_data();
 	FrameData* frame_data = boot_data->frame_allocator_data;
 	MemoryMapItem* frame_alloc_map_item = (MemoryMapItem*)((uint64_t)frame_data->memory_map_item_offset);
 	uint64_t boot_frame_allocator_size = frame_data->first_frame_address - frame_alloc_map_item->base_addr;
@@ -223,8 +223,8 @@ uint64_t get_bootloader_memory_usage(){
 MemoryMapRange memory_map_buff[MAX_PHYSICAL_MEMORY_RANGES];
 bool memory_map_buffered = false;
 MemoryMapStruct get_memory_map(){
-	BootLoaderData* boot_data = get_bootloader_data();
-	MemoryMapItem* map_items = boot_data->map_items;
+	volatile BootLoaderData* boot_data = get_bootloader_data();
+	volatile MemoryMapItem* map_items = boot_data->map_items;
 
 	MemoryMapStruct memory_map;
 	memory_map.ranges = memory_map_buff;
@@ -233,30 +233,16 @@ MemoryMapStruct get_memory_map(){
 	if(memory_map_buffered)
 		return memory_map;
 
+	//this array it's used to translate the bios memory map type to the kernel memory map type
+	//0 is unused 1 to 5 it's defined in the bootloader_data.h defines
+	uint32_t type_mapping[] = {MEMORYMAP_RESERVED, MEMORYMAP_USABLE, MEMORYMAP_RESERVED, MEMORYMAP_ACPI_TABLE, MEMORYMAP_ACPI_NVS, MEMORYMAP_BAD};
 	for(size_t i = 0; i < memory_map.number_of_ranges; i++){
 		MemoryMapRange nrange;
 		nrange.start_address = map_items[i].base_addr;
 		nrange.size = map_items[i].size;
-		switch(map_items[i].acpi){
-			case BIOS_MEM_TYPE_USABLE:
-				nrange.type = MEMORYMAP_USABLE;
-				break;
-			case BIOS_MEM_TYPE_RESERVED:
-				nrange.type = MEMORYMAP_RESERVED;
-				break;
-			case BIOS_MEM_TYPE_ACPI_TABLE:
-				nrange.type = MEMORYMAP_ACPI_TABLE;
-				break;
-			case BIOS_MEM_TYPE_ACPI_NVS:
-				nrange.type = MEMORYMAP_ACPI_NVS;
-				break;
-			case BIOS_MEM_TYPE_BAD:
-				nrange.type = MEMORYMAP_BAD;
-				break;
-			default:
-				nrange.type = MEMORYMAP_RESERVED;
-				break;
-		}
+		nrange.type = MEMORYMAP_RESERVED;
+		if(map_items[i].type >= BIOS_MEM_TYPE_USABLE && map_items[i].type <= BIOS_MEM_TYPE_BAD)
+			nrange.type = type_mapping[map_items[i].type];
 
 		//if the bit 0 is not setted it must be ignored(specified in the ACPI specification)
 		if((map_items[i].acpi & 1) == 0)
@@ -266,7 +252,7 @@ MemoryMapStruct get_memory_map(){
 		if((map_items[i].acpi & 2) != 0)
 			nrange.type = MEMORY_MAP_NON_VOLATILE;
 
-		memory_map.ranges[i] = nrange;
+		memory_map_buff[i] = nrange;
 	}
 	memory_map_buffered = true;
 	return memory_map;
