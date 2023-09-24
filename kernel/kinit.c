@@ -15,7 +15,7 @@ void* kinit(){
 	//at the moment we have a minimal no interrupt basic paging mapping set up from the bootloader
 	init_frame_allocator();
 	set_up_firmware_layer();
-	set_up_arch_layer();
+	early_set_up_arch_layer();
 	init_interrupts();
 	enable_interrupts();
 	
@@ -79,6 +79,9 @@ void* kinit(){
 	
 	//allocate stack
 	VMemHandle stack_mem = allocate_kernel_virtual_memory(KERNEL_STACK_SIZE, VM_TYPE_STACK, 8*GB, 16*KB);
+
+	//the new stack is still not setted up but the memory is fully working
+	set_up_arch_layer();
 
 	return get_vmem_addr(stack_mem)+get_vmem_size(stack_mem);//return the stack top
 }

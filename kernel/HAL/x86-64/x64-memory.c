@@ -3,7 +3,7 @@
 #include "../../mem/frame_allocator.h"
 
 inline void memory_fence(){
-	asm volatile("mfence");
+	asm volatile("mfence" :::"memory");
 }
 
 /*get the page table entry relative to the virtual address

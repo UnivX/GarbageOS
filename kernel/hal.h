@@ -104,6 +104,7 @@ void copy_paging_structure_mapping_no_page_invalidation(void* src_paging_structu
 //this function is called at the start of the kmain 
 //every call made to the HAL with the exception of kpanic
 //must be made after this function call
+void early_set_up_arch_layer();
 void set_up_arch_layer();
 void set_up_firmware_layer();
 bool is_hal_arch_initialized();

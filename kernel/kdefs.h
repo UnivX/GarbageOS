@@ -16,6 +16,11 @@
 /*KERNEL STACKS CONSTS*/
 #define KERNEL_STACK_SIZE 16*MB
 
+//critical stack padding is the padding for page_fault and excetption stacks
+#define CRITICAL_STACK_PADDING PAGE_SIZE
+#define PAGE_FAULT_STACK_SIZE 128*KB
+#define EXCEPTION_STACK_SIZE 16*KB
+
 /*VMEM PARTITIONS*/
 #define KERNEL_VMEM_START (void*)0xffff800000000000
 #define IDENTITY_MAP_VMEM_END (void*)(512*GB)
