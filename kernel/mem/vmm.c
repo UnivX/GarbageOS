@@ -279,7 +279,7 @@ bool try_expand_vmem_bottom(VMemHandle handle, uint64_t size){
 	//map the memory to some free frames
 	void* vaddr = get_no_padding_start_addr(desc)-size;
 	for(uint64_t i = 0; i < size; i+=PAGE_SIZE){
-		KASSERT(vaddr < (desc->start_vaddr));
+		KASSERT(vaddr >= (desc->start_vaddr));
 		paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 		vaddr += PAGE_SIZE;
 	}
@@ -297,6 +297,11 @@ uint64_t get_vmem_size(VMemHandle handle){
 void* get_vmem_addr(VMemHandle handle){
 	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
 	return get_no_padding_start_addr(desc);
+}
+
+VirtualMemoryType get_vmem_type(VMemHandle handle){
+	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+	return desc->type;
 }
 
 static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descriptor, void* start, uint64_t size){
@@ -428,6 +433,18 @@ static void* get_no_padding_start_addr(const VirtualMemoryDescriptor *d){
 	return d->start_vaddr + d->lower_padding;
 }
 
+VMemHandle get_vmem_from_address(void* addr){
+	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
+	uint64_t iaddr = (uint64_t)addr;
+
+	while(descriptor->next != NULL){
+		if(iaddr >= (uint64_t)descriptor->start_vaddr && iaddr < (uint64_t)(descriptor->start_vaddr)+(uint64_t)(descriptor->size_bytes))
+			break;
+		descriptor = descriptor->next;
+	}
+	return descriptor;
+}
+
 static const char* get_vm_type_string(VirtualMemoryType vm_type){
 	switch(vm_type){
 		case VM_TYPE_FREE:
@@ -491,7 +508,8 @@ void page_fault(InterruptInfo info){
 	else
 		print("(read) ");
 
-	if(!(error & 1))
+	bool page_not_present = !(error & 1);
+	if(page_not_present)
 		print("page not present ");
 	else if(error & 1<<3)
 		print("reserved write ");
@@ -511,5 +529,32 @@ void page_fault(InterruptInfo info){
 	print("\n");
 	if(cr2 == 0)
 		print("[PAGE FAULT] NULL POINTER DEREFERENCE\n");
+
+	print("[PAGE FAULT VMEM] ");
+	VMemHandle handle = get_vmem_from_address((void*)cr2);
+	print(get_vm_type_string(get_vmem_type(handle)));
+	print(" ");
+	print_uint64_hex((uint64_t)get_vmem_addr(handle));
+	print(" -> ");
+	print_uint64_hex((uint64_t)get_vmem_addr(handle) + get_vmem_size(handle));
+	print("\n");
+
+	if(get_vmem_type(handle) == VM_TYPE_STACK && cr2 < (uint64_t)get_vmem_addr(handle) && page_not_present){
+		print("[PAGE FAULT] POSSIBLE STACK OVERFLOW\n");
+		//possible stack overflow, try to expand
+		//only if we do not consume the security minimum stack padding
+		//used to check for stack overflows
+		VirtualMemoryDescriptor* desc = handle;
+		int64_t remaining_padding = (int64_t)desc->lower_padding - KERNEL_STACK_EXPANSION_STEP;
+		if(remaining_padding >= MINIMUM_STACK_PADDING){
+			if(try_expand_vmem_bottom(handle, KERNEL_STACK_EXPANSION_STEP)){
+				print("[PAGE FAULT] STACK EXPANDED, TRYING TO CONTINUE\n\n");
+				return;
+			}
+		}
+		print("[PAGE FAULT] FAILED TO EXPAND THE STACK\n\n");
+
+	}
 	kpanic(UNRECOVERABLE_PAGE_FAULT);
 }
+

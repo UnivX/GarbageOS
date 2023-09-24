@@ -59,7 +59,12 @@ void print_elf_info(){
 	}
 }
 
-
+volatile bool f = false;
+void stack_overflower(int s){
+	if(s != 0)
+		stack_overflower(s-1);
+	f = !f;
+}
 
 uint64_t kmain(){
 	install_default_interrupt_handler(interrupt_print);
@@ -72,7 +77,6 @@ uint64_t kmain(){
 	PSFFont font = get_default_PSF_font();
 	init_kio(display, font, background_color, font_color);
 	print_elf_info();
-
 
 	asm volatile("int $0x40");
 	heap_stress_test();
@@ -102,6 +106,10 @@ uint64_t kmain(){
 		print_uint64_hex(memMap.ranges[i].start_address);
 		print("\n");
 	}
+	print("\n");
+
+	print("starting stack overflower\n");
+	stack_overflower(4000);
 
 	uint64_t kernel_bootloader_overhead = get_total_usable_RAM_size()-(get_number_of_free_frames()*PAGE_SIZE);
 	print("kernel + bootloader memory overhead: ");
@@ -131,6 +139,7 @@ uint64_t kmain(){
 	print("System Total RAM: ");
 	print_uint64_dec(get_total_usable_RAM_size() / MB);
 	print(" MiB\n");
+
 
 	finalize_kio();
 	return 0;

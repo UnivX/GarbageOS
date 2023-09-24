@@ -70,7 +70,10 @@ bool try_expand_vmem_bottom(VMemHandle handle, uint64_t size);
 bool deallocate_kernel_virtual_memory(VMemHandle handle);
 uint64_t get_vmem_size(VMemHandle handle);
 void* get_vmem_addr(VMemHandle handle);
+VirtualMemoryType get_vmem_type(VMemHandle handle);
 //if page_flags == COPY_FLAGS_ON_MMAP_COPY then the flags are simply copied
 void debug_print_kernel_vmm();
 //return the new cutted descriptor
 
+//also if it's inside the padding
+VMemHandle getHandleFromAddress(void* addr);

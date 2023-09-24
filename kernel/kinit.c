@@ -78,7 +78,7 @@ void* kinit(){
 	enable_kheap_growth();
 	
 	//allocate stack
-	VMemHandle stack_mem = allocate_kernel_virtual_memory(KERNEL_STACK_SIZE, VM_TYPE_STACK, 8*GB, 16*KB);
+	VMemHandle stack_mem = allocate_kernel_virtual_memory(KERNEL_STACK_SIZE, VM_TYPE_STACK, 16*KB, 64*MB);
 
 	//the new stack is still not setted up but the memory is fully working
 	set_up_arch_layer();
