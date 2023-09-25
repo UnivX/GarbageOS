@@ -104,7 +104,7 @@ VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
 	size += MEMORY_MAP_PADDING*2;
 #endif
 
-	KASSERT(paddr != NULL);
+	//KASSERT(paddr != NULL);
 	KASSERT(size % PAGE_SIZE == 0);
 	KASSERT((uint64_t)paddr % PAGE_SIZE == 0);
 
@@ -199,6 +199,20 @@ bool deallocate_kernel_virtual_memory(VMemHandle handle){
 	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
 	//get the free type based on the vaddr
 	VirtualMemoryType free_type = desc->start_vaddr < IDENTITY_MAP_VMEM_END ? VM_TYPE_IDENTITY_MAP_FREE : VM_TYPE_FREE;
+
+	//invalidate and free virtual memory
+	if(!free_type){
+		void* vaddr = get_no_padding_start_addr(desc);
+		for(uint64_t i = 0; i < get_no_padding_size(desc); i+=PAGE_SIZE){
+			if(desc->type == VM_TYPE_HEAP || desc->type == VM_TYPE_STACK || desc->type == VM_TYPE_GENERAL_USE){
+				PagingMapState state = get_physical_address(kernel_vmm.kernel_paging_structure, vaddr);
+				if(state.mmap_present)
+					dealloc_frame(state.paddr);
+			}
+			invalidate_paging_mapping(kernel_vmm.kernel_paging_structure, vaddr);
+			vaddr += PAGE_SIZE;
+		}
+	}
 	
 	//set the range as a free one
 	desc->type = free_type;

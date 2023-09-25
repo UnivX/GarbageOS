@@ -81,6 +81,9 @@ typedef struct PagingMapState{
  * HAL interface:
  */
 
+//firmware dependant
+void* acpi_RSDP();
+
 //fatal error
 void kpanic(volatile uint64_t error_code);
 
