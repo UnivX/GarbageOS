@@ -9,6 +9,7 @@ void* acpi_RSDP(){
 	//the EBDA has a pointer at address 0x40E
 	VMemHandle first_page = memory_map((void*)0, PAGE_SIZE, PAGE_PRESENT);//readonly
 	volatile uint16_t EBDA_segment = *((volatile uint16_t*)(get_vmem_addr(first_page) + 0x40E));
+	deallocate_kernel_virtual_memory(first_page);
 	void* EBDA_addr = (void*)(((uint64_t)EBDA_segment*0x10) & 0x000FFFFF);
 	//align to PAGE_BOUNDARY
 	uint64_t EBDA_virtual_mem_offset = ((uint64_t)EBDA_addr%PAGE_SIZE);//offset from the start of the virtual memory
@@ -27,7 +28,7 @@ void* acpi_RSDP(){
 	for(uint64_t offset = 0; offset < 1*KB && RSDP == NULL; offset += 16){
 		uint64_t* addr = (uint64_t*)(get_vmem_addr(first_kb) + offset + EBDA_virtual_mem_offset - (EBDA_virtual_mem_offset%16));
 		if(*addr == signature)
-			RSDP = (void*)((uint64_t)addr-(uint64_t)get_vmem_addr(first_kb));
+			RSDP = (void*)((uint64_t)addr-(uint64_t)get_vmem_addr(first_kb) + (uint64_t)EBDA_addr);
 	}
 	deallocate_kernel_virtual_memory(first_kb);
 
@@ -36,7 +37,7 @@ void* acpi_RSDP(){
 	for(uint64_t offset = 0; offset < BIOS_RO_size && RSDP == NULL; offset += 16){
 		uint64_t* addr = (uint64_t*)(get_vmem_addr(BIOS_readonly) + offset);
 		if(*addr == signature)
-			RSDP = (void*)((uint64_t)addr-(uint64_t)get_vmem_addr(BIOS_readonly));
+			RSDP = (void*)((uint64_t)addr-(uint64_t)get_vmem_addr(BIOS_readonly)+BIOS_RO_start);
 	}
 	deallocate_kernel_virtual_memory(BIOS_readonly);
 

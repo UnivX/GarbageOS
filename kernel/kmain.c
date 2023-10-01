@@ -8,11 +8,15 @@
 #include "mem/heap.h"
 #include "kio.h"
 #include "elf.h"
+#include "acpi/acpi.h"
 
 #include "test/kheap_test.h"
 
+//TODO: implement uefi bootloader for sweet acpi 2.0 tables
+//TODO: test acpi 2.0
+//TODO: clear all paging map levels when deallocating virtual memory
 //TODO: test the PIC
-//TODO: check the VMM integrity
+//TODO: prevent nested page fault
 
 void general_protection_fault(InterruptInfo info){
 	print("[GENERAL PROTECTION FAULT] error: ");
@@ -112,10 +116,6 @@ uint64_t kmain(){
 	print("starting stack overflower\n");
 	stack_overflower(4000);
 
-	print("RSDP: ");
-	print_uint64_hex((uint64_t)acpi_RSDP());
-	print("\n");
-
 	uint64_t kernel_bootloader_overhead = get_total_usable_RAM_size()-(get_number_of_free_frames()*PAGE_SIZE);
 	print("kernel + bootloader memory overhead: ");
 	print_uint64_dec(kernel_bootloader_overhead / MB);
@@ -144,6 +144,8 @@ uint64_t kmain(){
 	print("System Total RAM: ");
 	print_uint64_dec(get_total_usable_RAM_size() / MB);
 	print(" MiB\n");
+
+	print( acpi_init() ? "ACPI OK\n" : "ACPI BAD\n");
 
 
 	finalize_kio();
