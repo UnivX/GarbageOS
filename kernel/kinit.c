@@ -25,8 +25,12 @@ void* kinit(){
 	//create new paging_structure;
 	void* new_paging_struct = create_empty_kernel_paging_structure();
 	initialize_kernel_VMM(new_paging_struct);
-	
-	//identity map memory
+
+	VMemHandle identity_map_handle = identity_map((void*)PAGE_SIZE, 512*GB-PAGE_SIZE);
+	KASSERT(identity_map_handle != NULL);
+
+	//OLD IDENTITY MAPPING CODE
+	//identity map usable physical memory
 	FreePhysicalMemoryStruct physical_mem = get_ram_space();
 	for(uint64_t i = 0; i < physical_mem.number_of_ranges; i++){
 		uint64_t paddr_start = physical_mem.free_ranges[i].start_address;
@@ -41,9 +45,10 @@ void* kinit(){
 			paddr_start = PAGE_SIZE;
 			size -= PAGE_SIZE;
 		}
-		KASSERT(identity_map((void*)paddr_start, size) != NULL);
+		load_identity_map_pages((void*)paddr_start, size, identity_map_handle);
+		//KASSERT(identity_map((void*)paddr_start, size) != NULL);
 	}
-	
+
 	//map the kernel elf image
 	ElfHeader* header = get_kernel_image();
 	KASSERT(elf_validate_header(header));

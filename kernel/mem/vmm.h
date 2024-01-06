@@ -47,6 +47,7 @@ typedef VirtualMemoryDescriptor* VMemHandle;
 
 void initialize_kernel_VMM(void* paging_structure);
 VMemHandle identity_map(void* paddr, uint64_t size);
+void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle);
 VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags);
 VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding);
 VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags);

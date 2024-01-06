@@ -12,6 +12,7 @@
 
 #include "test/kheap_test.h"
 
+//TODO: add lazy page mapping
 //TODO: implement uefi bootloader for sweet acpi 2.0 tables
 //TODO: test acpi 2.0
 //TODO: clear all paging map levels when deallocating virtual memory
@@ -109,9 +110,13 @@ uint64_t kmain(){
 		print(type);
 		print(" ");
 		print_uint64_hex(memMap.ranges[i].start_address);
+		print(" / ");
+		print_uint64_hex(memMap.ranges[i].start_address+memMap.ranges[i].size);
 		print("\n");
 	}
 	print("\n");
+	//debug_print_kernel_vmm();
+	//return 0;
 
 	print("starting stack overflower\n");
 	stack_overflower(4000);
@@ -146,7 +151,6 @@ uint64_t kmain(){
 	print(" MiB\n");
 
 	print( acpi_init() ? "ACPI OK\n" : "ACPI BAD\n");
-
 
 	finalize_kio();
 	return 0;

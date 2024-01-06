@@ -91,11 +91,30 @@ VMemHandle identity_map(void* paddr, uint64_t size){
 	VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor(descriptor, paddr, size);
 	KASSERT((uint64_t)cutted_descriptor->start_vaddr % PAGE_SIZE == 0);
 	cutted_descriptor->type = VM_TYPE_IDENTITY_MAP;
+	/*
 	for(void* to_map = cutted_descriptor->start_vaddr; to_map < cutted_descriptor->start_vaddr+cutted_descriptor->size_bytes; to_map+=PAGE_SIZE){
 		paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 	}
+	*/
 	
 	return (VMemHandle)cutted_descriptor;
+}
+
+void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle){
+	KASSERT(size%PAGE_SIZE == 0);
+	KASSERT((uint64_t)paddr%PAGE_SIZE == 0);
+
+	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)&handle;
+	/*
+	if(paddr < get_no_padding_start_addr(desc))
+		kpanic(VMM_ERROR);
+	if(paddr + size > get_no_padding_start_addr(desc) + get_no_padding_size(desc))
+		kpanic(VMM_ERROR);
+		*/
+
+	for(void* to_map = paddr; to_map < paddr+size; to_map+=PAGE_SIZE){
+		paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
+	}
 }
 
 VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
@@ -515,6 +534,11 @@ void page_fault(InterruptInfo info){
 		kpanic(UNRECOVERABLE_PAGE_FAULT);
 
 	uint64_t error = info.error;
+	uint64_t fault_address;
+	asm("mov %%cr2, %0" : "=r"(fault_address) : : "cc");
+	VMemHandle handle = get_vmem_from_address((void*)fault_address);
+	VirtualMemoryType type = get_vmem_type(handle);
+
 	print("[PAGE FAULT] ");
 
 	if(error & 1<<1)
@@ -535,17 +559,24 @@ void page_fault(InterruptInfo info){
 		print("caused by Shadow Stack Access ");
 	if(error & 1 <<15)
 		print("caused by SGX ");
-
-	uint64_t cr2;
-	asm("mov %%cr2, %0" : "=r"(cr2) : : "cc");
-	print("\n[PAGE FAULT ADDRESS] ");
-	print_uint64_hex(cr2);
 	print("\n");
-	if(cr2 == 0)
+
+	if(type == VM_TYPE_IDENTITY_MAP){
+		void* to_map = (void*)fault_address - PAGE_FAULT_ADDITIONAL_PAGE_LOAD/2;
+		void* last_page = to_map + (1+PAGE_FAULT_ADDITIONAL_PAGE_LOAD)*PAGE_SIZE;
+		for(; to_map < last_page; to_map+=PAGE_SIZE){
+			paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
+		}
+		return;
+	}
+
+	print("[PAGE FAULT ADDRESS] ");
+	print_uint64_hex(fault_address);
+	print("\n");
+	if(fault_address == 0)
 		print("[PAGE FAULT] NULL POINTER DEREFERENCE\n");
 
 	print("[PAGE FAULT VMEM] ");
-	VMemHandle handle = get_vmem_from_address((void*)cr2);
 	print(get_vm_type_string(get_vmem_type(handle)));
 	print(" ");
 	print_uint64_hex((uint64_t)get_vmem_addr(handle));
@@ -553,7 +584,7 @@ void page_fault(InterruptInfo info){
 	print_uint64_hex((uint64_t)get_vmem_addr(handle) + get_vmem_size(handle));
 	print("\n");
 
-	if(get_vmem_type(handle) == VM_TYPE_STACK && cr2 < (uint64_t)get_vmem_addr(handle) && page_not_present){
+	if(get_vmem_type(handle) == VM_TYPE_STACK && fault_address < (uint64_t)get_vmem_addr(handle) && page_not_present){
 		print("[PAGE FAULT] POSSIBLE STACK OVERFLOW\n");
 		//possible stack overflow, try to expand
 		//only if we do not consume the security minimum stack padding

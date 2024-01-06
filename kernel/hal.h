@@ -121,7 +121,7 @@ FreePhysicalMemoryStruct free_mem_bootloader();
 
 //get all the ram (also return the memory used by the boot loader, kernel and other reserved data)
 FreePhysicalMemoryStruct get_ram_space();
-//get memory map from the firmware(uefi, bios, others??)
+//get memory map (sorted) from the firmware(uefi, bios, others??)
 MemoryMapStruct get_memory_map();
 uint64_t get_bootloader_memory_usage();
 //return the last address for the last usable register size chunk of data

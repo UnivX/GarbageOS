@@ -221,6 +221,7 @@ uint64_t get_bootloader_memory_usage(){
 }
 
 MemoryMapRange memory_map_buff[MAX_PHYSICAL_MEMORY_RANGES];
+uint64_t memory_map_count_buff;
 bool memory_map_buffered = false;
 MemoryMapStruct get_memory_map(){
 	volatile BootLoaderData* boot_data = get_bootloader_data();
@@ -230,8 +231,10 @@ MemoryMapStruct get_memory_map(){
 	memory_map.ranges = memory_map_buff;
 	memory_map.number_of_ranges = *boot_data->map_items_count;
 
-	if(memory_map_buffered)
+	if(memory_map_buffered){
+		memory_map.number_of_ranges = memory_map_count_buff;
 		return memory_map;
+	}
 
 	//this array it's used to translate the bios memory map type to the kernel memory map type
 	//0 is unused 1 to 5 it's defined in the bootloader_data.h defines
@@ -254,6 +257,19 @@ MemoryMapStruct get_memory_map(){
 
 		memory_map_buff[i] = nrange;
 	}
+	
+	//bubble sort
+	for(size_t i = 0; i < memory_map.number_of_ranges; i++){
+		for(size_t j = 0; j < memory_map.number_of_ranges-1-i; j++){
+			if(memory_map.ranges[j].start_address > memory_map.ranges[j+1].start_address){
+				MemoryMapRange temp = memory_map.ranges[j+1];
+				memory_map.ranges[j+1] = memory_map.ranges[j];
+				memory_map.ranges[j] = temp;
+			}
+		}
+	}
+	memory_map_count_buff = memory_map.number_of_ranges;
 	memory_map_buffered = true;
+
 	return memory_map;
 }
