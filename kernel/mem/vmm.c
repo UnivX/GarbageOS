@@ -104,8 +104,8 @@ void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle){
 	KASSERT(size%PAGE_SIZE == 0);
 	KASSERT((uint64_t)paddr%PAGE_SIZE == 0);
 
-	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)&handle;
 	/*
+	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)&handle;
 	if(paddr < get_no_padding_start_addr(desc))
 		kpanic(VMM_ERROR);
 	if(paddr + size > get_no_padding_start_addr(desc) + get_no_padding_size(desc))
@@ -526,19 +526,7 @@ void debug_print_kernel_vmm(){
 	print("-----kernel VMM state end-----\n");
 }
 
-void page_fault(InterruptInfo info){
-#ifdef HALT_PAGE_FAULT
-	halt();
-#endif
-	if(!is_kio_initialized())
-		kpanic(UNRECOVERABLE_PAGE_FAULT);
-
-	uint64_t error = info.error;
-	uint64_t fault_address;
-	asm("mov %%cr2, %0" : "=r"(fault_address) : : "cc");
-	VMemHandle handle = get_vmem_from_address((void*)fault_address);
-	VirtualMemoryType type = get_vmem_type(handle);
-
+void print_page_fault_error(uint64_t error){
 	print("[PAGE FAULT] ");
 
 	if(error & 1<<1)
@@ -560,8 +548,27 @@ void page_fault(InterruptInfo info){
 	if(error & 1 <<15)
 		print("caused by SGX ");
 	print("\n");
+}
+
+void page_fault(InterruptInfo info){
+#ifdef HALT_PAGE_FAULT
+	halt();
+#endif
+	if(!is_kio_initialized())
+		kpanic(UNRECOVERABLE_PAGE_FAULT);
+
+	uint64_t error = info.error;
+	uint64_t fault_address;
+	asm("mov %%cr2, %0" : "=r"(fault_address) : : "cc");
+	VMemHandle handle = get_vmem_from_address((void*)fault_address);
+	VirtualMemoryType type = get_vmem_type(handle);
+	bool page_not_present = !(error & 1);
 
 	if(type == VM_TYPE_IDENTITY_MAP){
+#ifdef PRINT_ALL_PAGE_FAULTS
+	print_page_fault_error(error);
+#endif
+		//load the identity map pages
 		void* to_map = (void*)fault_address - PAGE_FAULT_ADDITIONAL_PAGE_LOAD/2;
 		void* last_page = to_map + (1+PAGE_FAULT_ADDITIONAL_PAGE_LOAD)*PAGE_SIZE;
 		for(; to_map < last_page; to_map+=PAGE_SIZE){
@@ -569,7 +576,7 @@ void page_fault(InterruptInfo info){
 		}
 		return;
 	}
-
+	print_page_fault_error(error);
 	print("[PAGE FAULT ADDRESS] ");
 	print_uint64_hex(fault_address);
 	print("\n");

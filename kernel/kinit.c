@@ -26,7 +26,9 @@ void* kinit(){
 	void* new_paging_struct = create_empty_kernel_paging_structure();
 	initialize_kernel_VMM(new_paging_struct);
 
-	VMemHandle identity_map_handle = identity_map((void*)PAGE_SIZE, 512*GB-PAGE_SIZE);
+	//DO NOT IDENTITY MAP THE FIRST PAGE(it's needed for the nullpointer exception)
+	void* identity_map_start_addr = (void*)PAGE_SIZE;
+	VMemHandle identity_map_handle = identity_map(identity_map_start_addr, (uint64_t)IDENTITY_MAP_VMEM_END-(uint64_t)identity_map_start_addr);
 	KASSERT(identity_map_handle != NULL);
 
 	//OLD IDENTITY MAPPING CODE

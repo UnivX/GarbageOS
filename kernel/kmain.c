@@ -35,6 +35,7 @@ void interrupt_print(InterruptInfo info){
 }
 
 void print_elf_info(){
+	print("KERNEL IMAGE INFO\n");
 	print("kernel image addr: ");
 	print_uint64_hex((uint64_t)get_kernel_image());
 	print("\n");
@@ -84,12 +85,7 @@ uint64_t kmain(){
 	init_kio(display, font, background_color, font_color);
 	print_elf_info();
 
-	asm volatile("int $0x40");
-	heap_stress_test();
-	//debug_print_kernel_vmm();
-	print("\n");
-
-	print("MEMORY MAP:\n");
+	print("\nMEMORY MAP:\n");
 	MemoryMapStruct memMap = get_memory_map();
 	for(size_t i = 0; i < memMap.number_of_ranges; i++){
 		const char* type = 							"[   UNKNOWN  ]";
@@ -115,11 +111,20 @@ uint64_t kmain(){
 		print("\n");
 	}
 	print("\n");
-	//debug_print_kernel_vmm();
+	debug_print_kernel_vmm();
 	//return 0;
+	print("\nSleeping...\n");
+	for(int i = 0; i < 40000000; i++)
+		io_wait();
 
+#ifdef DO_TESTS
+	print("\n-------------------STARTING TESTS-------------------\n");
 	print("starting stack overflower\n");
 	stack_overflower(4000);
+	asm volatile("int $0x40");
+	heap_stress_test();
+#endif
+	print("\n-------------------PRINTING MEMORY USAGE-------------------\n");
 
 	uint64_t kernel_bootloader_overhead = get_total_usable_RAM_size()-(get_number_of_free_frames()*PAGE_SIZE);
 	print("kernel + bootloader memory overhead: ");

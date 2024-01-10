@@ -1,6 +1,10 @@
 #pragma once
 #include <stdint.h>
 
+/*COMPILATION OPTIONS*/
+#define DO_TESTS
+//#define PRINT_ALL_PAGE_FAULTS
+
 /*BYTES MUL*/
 #define KB ((uint64_t)1024)
 #define MB ((uint64_t)1024*1024)
@@ -14,7 +18,7 @@
 #define KERNEL_HEAP_GROWTH_STEP 16*MB
 
 /*KERNEL STACKS CONSTS*/
-#define KERNEL_STACK_SIZE 4*KB
+#define KERNEL_STACK_SIZE 1*MB 
 #define KERNEL_STACK_EXPANSION_STEP 64*KB
 
 //critical stack padding is the padding for page_fault and excetption stacks
