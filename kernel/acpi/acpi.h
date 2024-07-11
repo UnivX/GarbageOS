@@ -71,3 +71,5 @@ typedef struct ACPI_description_header {
 
 bool acpi_init();
 bool print_acpi_rsdt();
+ACPI_description_header* get_table_header(uint32_t signature);
+bool check_ACPI_table(const ACPI_description_header* header);

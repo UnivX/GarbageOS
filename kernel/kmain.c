@@ -9,6 +9,7 @@
 #include "kio.h"
 #include "elf.h"
 #include "acpi/acpi.h"
+#include "acpi/madt.h"
 
 #include "test/kheap_test.h"
 
@@ -157,6 +158,16 @@ uint64_t kmain(){
 
 	print( acpi_init() ? "ACPI OK\n" : "ACPI BAD\n");
 
+	MADT* madt = get_MADT();
+
+	print( madt != NULL ? "MADT OK\n" : "MADT BAD\n");
+
+	if(madt != NULL){
+		ICS_header* header = get_first_ICS_header(madt);
+		print("first ICS header type: ");
+		print_uint64_dec(header->type);
+		print("\n");
+	}
 	finalize_kio();
 	return 0;
 }

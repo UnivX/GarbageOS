@@ -4,7 +4,7 @@
 static RSDP* cached_rsdp = NULL;
 static XSDP* cached_xsdp = NULL;
 
-bool check_rsdp(RSDP* rsdp){
+bool check_rsdp(const RSDP* rsdp){
 	char string_signature[] = "RSD PTR ";
 	uint64_t signature = *(uint64_t*)string_signature;
 
@@ -20,11 +20,11 @@ bool check_rsdp(RSDP* rsdp){
 	return checksum == 0;
 }
 
-bool check_xsdp(XSDP* xsdp){
+bool check_xsdp(const XSDP* xsdp){
 	return check_rsdp((RSDP*)xsdp);
 }
 
-bool check_table(ACPI_description_header* header){
+bool check_ACPI_table(const ACPI_description_header* header){
 	uint8_t* raw_table = (uint8_t*)header;
 	uint8_t checksum = 0;
 	for(size_t i = 0; i < header->lenght; i++)
@@ -33,17 +33,17 @@ bool check_table(ACPI_description_header* header){
 	return checksum == 0;
 }
 
-ACPI_description_header* get_rsdt(RSDP* rsdp){
+ACPI_description_header* get_rsdt(const RSDP* rsdp){
 	uint64_t addr = rsdp->rsdt;
 	return (ACPI_description_header*)addr;
 };
 
-ACPI_description_header* get_xsdt(XSDP* xsdp){
+ACPI_description_header* get_xsdt(const XSDP* xsdp){
 	uint64_t addr = xsdp->xsdt;
 	return (ACPI_description_header*)addr;
 };
 
-uint64_t get_acpi_table_headerless_lenght(ACPI_description_header* table){
+uint64_t get_acpi_table_headerless_lenght(const ACPI_description_header* table){
 	return table->lenght - sizeof(ACPI_description_header);
 }
 
@@ -117,10 +117,5 @@ bool acpi_init(){
 			return false;
 		}
 	}
-	print_acpi_rsdt();
-	ACPI_description_header* ACPI_table = get_table_header(ACPI_SIGNATURE("APIC"));
-	print_uint64_hex((uint64_t)ACPI_table);
-	print("\n");
-
 	return true;
 }
