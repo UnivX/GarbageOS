@@ -1,3 +1,5 @@
+//TODO: ExtendedChecksum XSDP in check xsdp
+//TODO: parse_acpi_xsdt
 #pragma once
 #include "../mem/vmm.h"
 #include "../hal.h"
@@ -23,6 +25,7 @@
 
 #define ACPI_REVISION2 2
 #define MAX_RSDP_SIZE 64*KB
+#define ACPI_SIGNATURE(str) *(uint32_t*)str
 
 //ACPI Generic Address Structure
 typedef struct GAS{
@@ -34,23 +37,37 @@ typedef struct GAS{
 }__attribute__((packed)) GAS;
 
 typedef struct RSDP {
- uint64_t signature;
- uint8_t checksum;
- char OEMID[6];
- uint8_t revision;
- uint32_t rsdt;
+ 	uint64_t signature;
+ 	uint8_t checksum;
+ 	char OEMID[6];
+ 	uint8_t revision;
+ 	uint32_t rsdt;
 } __attribute__((packed)) RSDP;
 
 typedef struct XSDP {
- uint64_t signature;
- uint8_t checksum;
- char OEMID[6];
- uint8_t revision;
- uint32_t rsdt;
- uint32_t len;
- uint64_t xsdt;
- uint8_t ExtendedChecksum;
- uint8_t reserved[3];
+	uint64_t signature;
+	uint8_t checksum;
+	char OEMID[6];
+	uint8_t revision;
+	uint32_t rsdt;
+	uint32_t len;
+	uint64_t xsdt;
+	uint8_t ExtendedChecksum;
+	uint8_t reserved[3];
 } __attribute__((packed)) XSDP;
 
+typedef struct ACPI_description_header {
+	uint32_t signature;
+	uint32_t lenght;
+	uint8_t revision;
+	uint8_t checksum;
+	char OEMID[6];
+	uint64_t OEM_table_id;
+	uint32_t OEM_revision;
+	uint32_t creator_id;
+	uint32_t creator_revision;
+} __attribute__((packed)) ACPI_description_header;
+
+
 bool acpi_init();
+bool print_acpi_rsdt();

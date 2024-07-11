@@ -564,7 +564,7 @@ void page_fault(InterruptInfo info){
 	VirtualMemoryType type = get_vmem_type(handle);
 	bool page_not_present = !(error & 1);
 
-	if(type == VM_TYPE_IDENTITY_MAP){
+	if(type == VM_TYPE_IDENTITY_MAP && page_not_present){
 #ifdef PRINT_ALL_PAGE_FAULTS
 	print_page_fault_error(error);
 #endif

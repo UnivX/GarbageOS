@@ -1,6 +1,9 @@
 #include "acpi.h"
 #include "../kio.h"
 
+static RSDP* cached_rsdp = NULL;
+static XSDP* cached_xsdp = NULL;
+
 bool check_rsdp(RSDP* rsdp){
 	char string_signature[] = "RSD PTR ";
 	uint64_t signature = *(uint64_t*)string_signature;
@@ -18,56 +21,106 @@ bool check_rsdp(RSDP* rsdp){
 }
 
 bool check_xsdp(XSDP* xsdp){
-	uint64_t* singature_ptr = (uint64_t*)"RSD PTR ";
-	if(xsdp->signature != *singature_ptr)
-		return false;
+	return check_rsdp((RSDP*)xsdp);
+}
 
-	uint8_t* raw_xsdp = (uint8_t*)xsdp;
+bool check_table(ACPI_description_header* header){
+	uint8_t* raw_table = (uint8_t*)header;
 	uint8_t checksum = 0;
-	for(size_t i = 0; i < xsdp->len; i++)
-		checksum += raw_xsdp[i];
+	for(size_t i = 0; i < header->lenght; i++)
+		checksum += raw_table[i];
 
 	return checksum == 0;
 }
 
-bool parse_acpi_rsdt(RSDP* rsdp){
-	if(!check_rsdp(rsdp))
-		return false;
+ACPI_description_header* get_rsdt(RSDP* rsdp){
+	uint64_t addr = rsdp->rsdt;
+	return (ACPI_description_header*)addr;
+};
+
+ACPI_description_header* get_xsdt(XSDP* xsdp){
+	uint64_t addr = xsdp->xsdt;
+	return (ACPI_description_header*)addr;
+};
+
+uint64_t get_acpi_table_headerless_lenght(ACPI_description_header* table){
+	return table->lenght - sizeof(ACPI_description_header);
+}
+
+bool print_acpi_rsdt(){
+	KASSERT(cached_rsdp != NULL);
+	ACPI_description_header* rsdt = get_rsdt(cached_rsdp);
+	uint32_t* entries = ((void*)rsdt + sizeof(ACPI_description_header));
+	uint64_t number_of_entries = get_acpi_table_headerless_lenght(rsdt) / sizeof(uint32_t);
+
+	char print_buffer[6] = "****\n\0";
+
+	print("ACPI table signatures: \n\n");
+	for(uint64_t i = 0; i < number_of_entries; i++){
+		ACPI_description_header* header = (ACPI_description_header*)((uint64_t)entries[i]);
+		*(uint32_t*)print_buffer = header->signature;
+		print(print_buffer);
+	}
+
 	return true;
 }
 
-bool parse_acpi_xsdt(XSDP* xsdp){
-	if(!check_rsdp((RSDP*)xsdp))
-		return false;
-
-	if(!check_xsdp(xsdp))
-		return false;
-	return false;
+ACPI_description_header* get_table_header(uint32_t signature){
+	KASSERT(cached_rsdp != NULL || cached_xsdp != NULL);
+	//if cached_xsdp is NULL then the ACPI version is 1 and there only the rsdp
+	//in the ACPI 1 version the table entries are 4 byte addresses. In the ACPI 2 version are 8 byte addresses
+	uint64_t number_of_entries = 0;
+	void* entries = NULL;
+	if(cached_xsdp != NULL){
+		ACPI_description_header* xsdt = get_xsdt(cached_xsdp);
+		entries = (void*)xsdt + sizeof(ACPI_description_header);
+		number_of_entries = get_acpi_table_headerless_lenght(xsdt) / sizeof(uint64_t);
+	}else{
+		ACPI_description_header* rsdt = get_rsdt(cached_rsdp);
+		entries = (void*)rsdt + sizeof(ACPI_description_header);
+		number_of_entries = get_acpi_table_headerless_lenght(rsdt) / sizeof(uint32_t);
+	}
+	
+	for(uint64_t i = 0; i < number_of_entries; i++){
+		ACPI_description_header* header;
+		if(cached_xsdp == NULL){
+			//if it's rsdt
+			header = (ACPI_description_header*)( (uint64_t) ((uint32_t*)entries)[i] );
+		}else{
+			//if it's xsdt
+			header = (ACPI_description_header*) ((uint64_t*)entries)[i];
+		}
+		
+		if(header->signature == signature)
+			return header;
+	}
+	return NULL;
 }
 
 bool acpi_init(){
-	RSDP rsdp;
-	XSDP xsdp;
-
-	void* rsdp_ptr = acpi_RSDP();
-	//the rounded up division of the size of XSDP struct and the page size
-	uint64_t number_of_pages = 1 + (sizeof(XSDP)/PAGE_SIZE + (sizeof(XSDP)%PAGE_SIZE != 0));
-	RSDP* original_rsdp = rsdp_ptr;
+	cached_rsdp = (RSDP*) acpi_RSDP();
 	
-	bool is_acpi2 = original_rsdp->revision == ACPI_REVISION2;
+	bool is_acpi2 = cached_rsdp->revision == ACPI_REVISION2;
 	if(is_acpi2)
-		xsdp = *(XSDP*)original_rsdp;//copy in a local struct 
-	rsdp = *original_rsdp;
+		cached_xsdp = (XSDP*)cached_rsdp;//copy in a local struct 
 
 	if(is_acpi2){
-		if(!parse_acpi_xsdt(&xsdp))
+		if(!check_xsdp(cached_xsdp)){
+			cached_xsdp = NULL;
+			cached_rsdp = NULL;
 			return false;
+		}
 	}else{
-		if(!parse_acpi_rsdt(&rsdp))
+		if(!check_rsdp(cached_rsdp)){
+			cached_xsdp = NULL;
+			cached_rsdp = NULL;
 			return false;
+		}
 	}
-
-	
+	print_acpi_rsdt();
+	ACPI_description_header* ACPI_table = get_table_header(ACPI_SIGNATURE("APIC"));
+	print_uint64_hex((uint64_t)ACPI_table);
+	print("\n");
 
 	return true;
 }
