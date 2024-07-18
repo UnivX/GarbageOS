@@ -41,6 +41,7 @@ typedef struct GlobalCPUState{
 	VMemHandle cpu_structures_vmem;
 } GlobalCPUState;
 
-void make_CPU_states();
+void make_CPU_states(uint64_t number_of_logical_cores);
+void delete_CPU_states();
 void load_CPU_state();
 uint16_t get_tss_selector(uint64_t cpu_id);

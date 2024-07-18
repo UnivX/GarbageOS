@@ -5,9 +5,7 @@ extern uint64_t isr_stub_table_end[];
 extern void load_idt(IDTR*);
 volatile GlobalCPUState global_cpu_state;
 
-void make_CPU_states(){
-	//at the moment we use only one physical thread
-	const uint64_t number_of_logical_cores = 1;//TODO
+void allocate_global_cpu_state_memory(uint64_t number_of_logical_cores){
 	uint64_t gdt_entry_count = DATA_CODE_SELCTOR_NUMBER+1;//data-code selectors plus null one
 	gdt_entry_count += number_of_logical_cores;//tss selectors
 
@@ -26,7 +24,9 @@ void make_CPU_states(){
 	global_cpu_state.gdt_entry_count = gdt_entry_count;
 	global_cpu_state.idt = (IDTEntry*)((void*)global_cpu_state.gdt+gdt_size);
 	global_cpu_state.local_cpu_states = (LocalCPUState*)((void*)global_cpu_state.idt+idt_size);
+}
 
+void setup_gdt(){
 	//null descriptor
 	global_cpu_state.gdt[0] = make_gdt(0,0,0,0);
 	//kernel code descriptor
@@ -42,6 +42,9 @@ void make_CPU_states(){
 	global_cpu_state.gdt[4] = make_gdt(0, 0xffffff, GDT_GRANULARITY_FLAG | GDT_LONG_MODE_FLAG,
 			GDT_PRESENT | GDT_DPL(3) | GDT_NOT_SYSTEM | GDT_READ_WRITE);
 
+}
+
+void setup_idt(){
 	//IDT setup
 	IDTEntry* idt_array = global_cpu_state.idt;
 	for(int i = 0; i < INTERRUPT_NUMBER; i++){
@@ -68,6 +71,14 @@ void make_CPU_states(){
 	}
 	global_cpu_state.idtr.idt = (uint64_t)&idt_array[0];
 	global_cpu_state.idtr.size = (sizeof(IDTEntry)*INTERRUPT_NUMBER) -1;
+}
+
+void make_CPU_states(uint64_t number_of_logical_cores){
+	//at the moment we use only one physical thread
+	global_cpu_state.number_of_logical_cores = number_of_logical_cores;
+	allocate_global_cpu_state_memory(number_of_logical_cores);
+	setup_gdt();
+	setup_idt();
 
 
 	//set up the local cpu data
@@ -90,11 +101,20 @@ void make_CPU_states(){
 		local_tss->rsp1 = NULL;
 		local_tss->rsp2 = NULL;
 
+		uint64_t gdt_size = global_cpu_state.gdt_entry_count*sizeof(GDT);
 		KASSERT((5+i)*sizeof(GDT) <= gdt_size);//check the gdt size;
 		global_cpu_state.gdt[5+i] = make_gdt((uint64_t)local_tss, sizeof(TSS)-1, GDT_LONG_MODE_FLAG,
 			GDT_PRESENT | GDT_DPL(0) | GDT_TYPE_TSS_AVAIBLE);
 	}
 	memory_fence();//force the flush of the cpu write buffer and Write Combining buffer
+}
+
+void delete_CPU_states(){
+	for(uint64_t i = 0; i < global_cpu_state.number_of_logical_cores; i++){
+		deallocate_kernel_virtual_memory(global_cpu_state.local_cpu_states[i].exception_stack);
+		deallocate_kernel_virtual_memory(global_cpu_state.local_cpu_states[i].page_fault_stack);
+	}
+	deallocate_kernel_virtual_memory(global_cpu_state.cpu_structures_vmem);
 }
 
 void load_CPU_state(){
@@ -115,4 +135,8 @@ void load_CPU_state(){
 uint16_t get_tss_selector(uint64_t cpu_id){
 	uint16_t offset = cpu_id*0x10;
 	return TSS_SELECTORS+offset;
+}
+
+uint64_t get_number_of_usable_logical_cores(){
+	return global_cpu_state.number_of_logical_cores;
 }

@@ -109,8 +109,13 @@ void copy_paging_structure_mapping_no_page_invalidation(void* src_paging_structu
 //must be made after this function call
 void early_set_up_arch_layer();
 void set_up_arch_layer();
+void final_cpu_initialization(uint64_t number_of_logical_cores);
 void set_up_firmware_layer();
 bool is_hal_arch_initialized();
+
+
+//gives back the number of logical cores that the kernel can use (they are the ones with a data strcuture set for them)
+uint64_t get_number_of_usable_logical_cores();
 
 /*return a sorted array of free physical memory ranges aligned to the PAGE_SIZE
  * used to initialize the frame allocator

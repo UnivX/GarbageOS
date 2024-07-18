@@ -156,18 +156,11 @@ uint64_t kmain(){
 	print_uint64_dec(get_total_usable_RAM_size() / MB);
 	print(" MiB\n");
 
-	print( acpi_init() ? "ACPI OK\n" : "ACPI BAD\n");
+	print_acpi_rsdt();
 
-	MADT* madt = get_MADT();
+	print("number of logical cores: ");
+	print_uint64_dec(get_number_of_usable_logical_cores());
 
-	print( madt != NULL ? "MADT OK\n" : "MADT BAD\n");
-
-	if(madt != NULL){
-		ICS_header* header = get_first_ICS_header(madt);
-		print("first ICS header type: ");
-		print_uint64_dec(header->type);
-		print("\n");
-	}
 	finalize_kio();
 	return 0;
 }

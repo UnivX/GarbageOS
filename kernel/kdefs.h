@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stdbool.h>
 
 /*COMPILATION OPTIONS*/
 #define DO_TESTS

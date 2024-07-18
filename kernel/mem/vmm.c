@@ -554,8 +554,6 @@ void page_fault(InterruptInfo info){
 #ifdef HALT_PAGE_FAULT
 	halt();
 #endif
-	if(!is_kio_initialized())
-		kpanic(UNRECOVERABLE_PAGE_FAULT);
 
 	uint64_t error = info.error;
 	uint64_t fault_address;
@@ -566,6 +564,8 @@ void page_fault(InterruptInfo info){
 
 	if(type == VM_TYPE_IDENTITY_MAP && page_not_present){
 #ifdef PRINT_ALL_PAGE_FAULTS
+	if(!is_kio_initialized())
+		kpanic(UNRECOVERABLE_PAGE_FAULT);
 	print_page_fault_error(error);
 #endif
 		//load the identity map pages
@@ -576,6 +576,8 @@ void page_fault(InterruptInfo info){
 		}
 		return;
 	}
+	if(!is_kio_initialized())
+		kpanic(UNRECOVERABLE_PAGE_FAULT);
 	print_page_fault_error(error);
 	print("[PAGE FAULT ADDRESS] ");
 	print_uint64_hex(fault_address);

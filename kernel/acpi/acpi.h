@@ -1,7 +1,6 @@
 //TODO: ExtendedChecksum XSDP in check xsdp
 //TODO: parse_acpi_xsdt
 #pragma once
-#include "../mem/vmm.h"
 #include "../hal.h"
 #include "../kdefs.h"
 

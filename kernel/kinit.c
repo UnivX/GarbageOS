@@ -7,18 +7,10 @@
 #include "mem/vmm.h"
 #include "mem/heap.h"
 #include "elf.h"
+#include "acpi/acpi.h"
+#include "acpi/madt.h"
 
-//called before the kmain by the early_kmain
-//return the kernel stack pointer
-//the stack present when kinit is called is small
-void* kinit(){
-	//at the moment we have a minimal no interrupt basic paging mapping set up from the bootloader
-	init_frame_allocator();
-	set_up_firmware_layer();
-	early_set_up_arch_layer();
-	init_interrupts();
-	enable_interrupts();
-	
+void setup_virtual_memory(){
 	//SETUP MEMORY
 	void* old_paging_struct = get_active_paging_structure();
 	
@@ -77,6 +69,21 @@ void* kinit(){
 	//remove old bootloader paging_structure;
 	set_active_paging_structure(new_paging_struct);
 	delete_paging_structure(old_paging_struct);
+}
+
+//called before the kmain by the early_kmain
+//return the kernel stack pointer
+//the stack present when kinit is called is small
+void* kinit(){
+	//at the moment we have a minimal no interrupt basic paging mapping set up from the bootloader
+	init_frame_allocator();
+	set_up_firmware_layer();
+	early_set_up_arch_layer();
+	init_interrupts();
+	enable_interrupts();
+
+	setup_virtual_memory();
+	
 	
 	//allocate the heap
 	kheap_init();
@@ -88,7 +95,16 @@ void* kinit(){
 	VMemHandle stack_mem = allocate_kernel_virtual_memory(KERNEL_STACK_SIZE, VM_TYPE_STACK, 16*KB, 64*MB);
 
 	//the new stack is still not setted up but the memory is fully working
+	//now we initialize the CPU with a correct configuration
+	//int this initialization we prepare the internal data structures only for one logical core
 	set_up_arch_layer();
+	acpi_init();
+
+	//now that we a basic system working we can find the number of logical cores via MADT and we can 
+	//initialize the CPU data structures ecc ecc for multiple logical cores
+	MADT* madt = get_MADT();
+	uint64_t number_of_logical_cores = count_number_of_local_apic(madt);
+	final_cpu_initialization(number_of_logical_cores);
 
 	return get_vmem_addr(stack_mem)+get_vmem_size(stack_mem);//return the stack top
 }
