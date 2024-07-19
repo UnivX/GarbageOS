@@ -10,6 +10,7 @@
 #include "elf.h"
 #include "acpi/acpi.h"
 #include "acpi/madt.h"
+#include "interrupt/apic.h"
 
 #include "test/kheap_test.h"
 
@@ -115,7 +116,7 @@ uint64_t kmain(){
 	debug_print_kernel_vmm();
 	//return 0;
 	print("\nSleeping...\n");
-	for(int i = 0; i < 40000000; i++)
+	for(int i = 0; i < 4000; i++)
 		io_wait();
 
 #ifdef DO_TESTS
@@ -160,6 +161,10 @@ uint64_t kmain(){
 
 	print("number of logical cores: ");
 	print_uint64_dec(get_number_of_usable_logical_cores());
+	print("\n");
+
+	print( madt_has_pic(get_MADT()) ? "the PC has PIC\n" : "the PC doesnt have PIC\n");
+	print( init_apic() ? "APIC init OK" : "APIC init BAD");
 
 	finalize_kio();
 	return 0;

@@ -1,6 +1,6 @@
 #include "pic.h"
 
-void ack_interrupt(uint64_t interrupt_number, bool spurious){
+void pic_ack_interrupt(uint64_t interrupt_number, bool spurious){
 	if(spurious){
 		//if it's the slave spurious interrupt
 		//then send the ack to the master
@@ -47,7 +47,7 @@ void init_pic(){
 	outb(MASTER_DATA_PORT, 0xFF);
 }
 
-void set_irq_mask(uint8_t irq_line){
+void set_pic_irq_mask(uint8_t irq_line){
 	irq_line -= PIC_IDT_START;
 
 	uint16_t port;
@@ -61,7 +61,7 @@ void set_irq_mask(uint8_t irq_line){
     outb(port, value);
 }
 
-void clear_irq_mask(uint8_t irq_line){
+void clear_pic_irq_mask(uint8_t irq_line){
 	irq_line -= PIC_IDT_START;
 
 	uint16_t port;
@@ -81,7 +81,7 @@ uint16_t get_pic_isr(){
     return (inb(SLAVE_COMMAND_PORT) << 8) | inb(SLAVE_COMMAND_PORT);
 }
 
-bool is_interrupt_spurious(uint8_t interrupt_number){
+bool is_pic_interrupt_spurious(uint8_t interrupt_number){
 	uint8_t irq = interrupt_number-PIC_IDT_START;
 	if (irq == 7){
 		return (get_pic_isr() & (1 << irq)) == 0;
@@ -89,4 +89,10 @@ bool is_interrupt_spurious(uint8_t interrupt_number){
 
 	}
 	return false;
+}
+
+void disable_pic() {
+	//set masks as all 1
+	outb(SLAVE_DATA_PORT, 0xFF);
+	outb(MASTER_DATA_PORT, 0xFF);
 }

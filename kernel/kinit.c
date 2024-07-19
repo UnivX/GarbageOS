@@ -80,7 +80,6 @@ void* kinit(){
 	set_up_firmware_layer();
 	early_set_up_arch_layer();
 	init_interrupts();
-	enable_interrupts();
 
 	setup_virtual_memory();
 	
@@ -105,6 +104,7 @@ void* kinit(){
 	MADT* madt = get_MADT();
 	uint64_t number_of_logical_cores = count_number_of_local_apic(madt);
 	final_cpu_initialization(number_of_logical_cores);
+	enable_interrupts();
 
 	return get_vmem_addr(stack_mem)+get_vmem_size(stack_mem);//return the stack top
 }

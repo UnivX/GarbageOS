@@ -105,7 +105,7 @@ void print_uint64_dec(uint64_t n){
 
 	uint8_t counter = 0;
 	while(n != 0){
-		int digit = n % 10;
+		uint8_t digit = n % 10;
 		n /= 10;
 		KASSERT(counter < buffer_size);
 		buffer[counter] = digit;

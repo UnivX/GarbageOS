@@ -31,10 +31,11 @@
 
 #define PIC_READ_ISR                0x0B
 
-void ack_interrupt(uint64_t interrupt_number, bool spurious);
+void pic_ack_interrupt(uint64_t interrupt_number, bool spurious);
 void init_pic();
-void set_irq_mask(uint8_t irq_line);
-void clear_irq_mask(uint8_t irq_line);
+void disable_pic();
+void set_pic_irq_mask(uint8_t irq_line);
+void clear_pic_irq_mask(uint8_t irq_line);
 //combined bit map of the serviced irq_lines
 uint16_t get_pic_isr();
-bool is_interrupt_spurious(uint8_t interrupt_number);
+bool is_pic_interrupt_spurious(uint8_t interrupt_number);

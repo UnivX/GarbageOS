@@ -3,6 +3,8 @@
 //this kernel does not support X2APIC
 //for more info on the data structures see the ACPI specification
 
+#define MADT_FLAG_PCAT_COMPATIBLE 1
+
 //ICS = Interrupt Controller Structure
 #define ICS_TYPE_PROCESSOR_LOCAL_APIC 0
 #define ICS_TYPE_PROCESSOR_IO_APIC 1
@@ -117,3 +119,4 @@ ICS_header* get_first_ICS_header(const MADT* madt);
 //return NULL when there is no next header
 ICS_header* get_next_ICS_header(const MADT* madt, const ICS_header* header);
 uint64_t count_number_of_local_apic(const MADT* madt);//this doesnt count X2APIC with IDs > 255
+bool madt_has_pic(const MADT* madt);
