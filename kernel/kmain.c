@@ -165,6 +165,7 @@ uint64_t kmain(){
 
 	print( madt_has_pic(get_MADT()) ? "the PC has PIC\n" : "the PC doesnt have PIC\n");
 	print( init_apic() ? "APIC init OK" : "APIC init BAD");
+	print_lapic_state();
 
 	finalize_kio();
 	return 0;

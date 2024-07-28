@@ -1,5 +1,7 @@
 #include "../../hal.h"
+#include <cpuid.h>
 #include <stdbool.h>
+#define CPUID_FLAG_MSR 1<<5
 
 inline uint8_t inb(uint16_t port)
 {
@@ -93,4 +95,21 @@ void memcpy(void* dst, const void* src, size_t size){
                   "2" (size)
                 : "memory");
 	*/
+}
+
+bool cpu_has_msr()
+{
+	unsigned int a = 0, unused = 0, d = 0;
+	__get_cpuid(1, &a, &unused, &unused, &d);
+   return (d & CPUID_FLAG_MSR);
+}
+
+void get_cpu_msr(uint32_t msr, uint32_t *lo, uint32_t *hi)
+{
+   asm volatile("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
+}
+
+void set_cpu_msr(uint32_t msr, uint32_t lo, uint32_t hi)
+{
+   asm volatile("wrmsr" : : "a"(lo), "d"(hi), "c"(msr));
 }

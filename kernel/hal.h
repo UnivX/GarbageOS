@@ -159,3 +159,6 @@ void enable_interrupts();
 void disable_interrupts();
 void set_privilege_change_interrupt_stack(void* stack);
 void halt();
+bool cpu_has_msr();
+void get_cpu_msr(uint32_t msr, uint32_t *lo, uint32_t *hi);
+void set_cpu_msr(uint32_t msr, uint32_t lo, uint32_t hi);
