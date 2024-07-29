@@ -14,6 +14,8 @@
 
 #include "test/kheap_test.h"
 
+//TODO: use the PIC's ISR to check when to send a PIC's EOI
+//TODO: check the PIC spurious interrupt handling
 //TODO: add PAT
 //TODO: add lazy page mapping
 //TODO: implement uefi bootloader for sweet acpi 2.0 tables
@@ -165,10 +167,11 @@ uint64_t kmain(){
 
 	print( madt_has_pic(get_MADT()) ? "the PC has PIC\n" : "the PC doesnt have PIC\n");
 	print( init_apic() ? "APIC init OK\n" : "APIC init BAD\n");
-	print_lapic_state();
 
 	//do a self interrupt with the local apic
 	send_IPI_by_destination_shorthand(APIC_DESTSH_SELF, 0x41);
+
+	print_lapic_state();
 
 	finalize_kio();
 	return 0;

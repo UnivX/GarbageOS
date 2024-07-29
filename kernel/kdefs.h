@@ -5,6 +5,8 @@
 /*COMPILATION OPTIONS*/
 #define DO_TESTS
 //#define PRINT_ALL_PAGE_FAULTS
+#define PRINT_ALL_EOI
+#define PRINT_ALL_SPURIOUS_INTERRUPT
 
 /*BYTES MUL*/
 #define KB ((uint64_t)1024)

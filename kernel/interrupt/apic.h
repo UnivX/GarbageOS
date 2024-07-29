@@ -59,6 +59,7 @@ typedef struct LocalAPIC{
 	uint32_t APIC_ID;
 	ICS_local_APIC* ics_lapic;
 	ICS_local_APIC_NMI* ics_lapic_nmi;//may be null
+	bool enabled;
 } LocalAPIC;
 
 typedef struct LAPICSubsystemData{
@@ -69,8 +70,14 @@ typedef struct LAPICSubsystemData{
 } LAPICSubsystemData;
 
 bool init_apic();
+bool is_local_apic_initialized();
 uint32_t get_logical_core_lapic_id();
 void print_lapic_state();
+
+//check the in service register(ISR) to check if the cpu is servicing a fixed interrupt coming from the lapic
+bool is_interrupt_lapic_generated(uint8_t interrupt_vector);
+//end of interrupt
+void send_lapic_EOI();
 
 void send_IPI_by_destination_shorthand(APICDestinationShorthand dest_sh, uint8_t interrupt_vector);
 void send_IPI_by_lapic_id(uint32_t lapic_id_target, uint8_t interrupt_vector);

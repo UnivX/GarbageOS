@@ -1,5 +1,6 @@
 #include "pic.h"
 
+
 void pic_ack_interrupt(uint64_t interrupt_number, bool spurious){
 	if(spurious){
 		//if it's the slave spurious interrupt

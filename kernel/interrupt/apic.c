@@ -6,12 +6,13 @@
 #include "../kdefs.h"
 
 //TODO: check if it works
+//TODO: implement spinlocks
 
 static LAPICSubsystemData lapic_gdata = {NULL, 0, NULL, NULL};
 
 static bool init_current_logical_core_lapic();
 static void apic_error_interrupt_handler(InterruptInfo info);
-static void send_lapic_EOI();
+void send_lapic_EOI();
 
 LocalAPIC* get_lapic_from_id(uint32_t apic_id){
 	KASSERT(lapic_gdata.lapic_array != NULL);
@@ -128,6 +129,15 @@ bool init_apic(){
 	return true;
 }
 
+bool is_local_apic_initialized(){
+	if(lapic_gdata.register_space_mapping == NULL)
+		return false;
+	uint32_t lapic_id = get_logical_core_lapic_id();
+	LocalAPIC* lapic_data = get_lapic_from_id(lapic_id);
+	KASSERT(lapic_data != NULL);
+	return lapic_data->enabled;
+}
+
 void* get_register_space_start_addr(){
 	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	return get_vmem_addr(lapic_gdata.register_space_mapping);
@@ -200,6 +210,7 @@ void setup_lapic_nmi_lint(){
 	//get lapic data
 	uint32_t lapic_id = get_logical_core_lapic_id();
 	LocalAPIC* lapic_data = get_lapic_from_id(lapic_id);
+	KASSERT(lapic_data != NULL);
 
 	//check if there is a lint# to set as an nmi
 	if(lapic_data->ics_lapic_nmi != NULL){
@@ -253,6 +264,11 @@ bool init_current_logical_core_lapic(){
 		return false;
 
 	setup_lapic_nmi_lint();
+
+	uint32_t lapic_id = get_logical_core_lapic_id();
+	LocalAPIC* lapic_data = get_lapic_from_id(lapic_id);
+	KASSERT(lapic_data != NULL);
+	lapic_data->enabled = true;
 	
 
 	//simulate error
@@ -261,7 +277,8 @@ bool init_current_logical_core_lapic(){
 }
 
 //NOT FOR NMI, SMI, INIT, ExtInt, SIPI, only fixed interrupt
-static void send_lapic_EOI(){
+void send_lapic_EOI(){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	write_32_lapic_register(APIC_REG_OFFSET_EOI, 0);
 }
 
@@ -279,12 +296,14 @@ uint64_t make_interrupt_command(uint8_t destination_id, APICDestinationShorthand
 }
 
 bool is_IPI_sending_complete(){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	const uint64_t delivery_status_flag = (1<<12);
 	return (read_64_lapic_register(APIC_REG_OFFSET_INTERRUPT_COMMAND_LOW) & delivery_status_flag) == 0;
 }
 
 //this function waits for the end of the sending of the IPI
 void wait_and_write_interrupt_command_register(uint64_t ICR){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	bool write_done = false;
 	while(!write_done){
 		//make it ininterruptible so we do not have race condition
@@ -300,33 +319,52 @@ void wait_and_write_interrupt_command_register(uint64_t ICR){
 
 void send_IPI_by_destination_shorthand(APICDestinationShorthand dest_sh, uint8_t interrupt_vector){
 	KASSERT(dest_sh != APIC_DESTSH_NO_SH);
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	uint64_t ICR = make_interrupt_command(0, dest_sh, 0, 1, 0, APIC_DEL_MODE_FIXED, interrupt_vector);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_IPI_by_lapic_id(uint32_t lapic_id_target, uint8_t interrupt_vector){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	uint64_t ICR = make_interrupt_command(lapic_id_target, APIC_DESTSH_NO_SH, 0, 1, 0, APIC_DEL_MODE_FIXED, interrupt_vector);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_IPI_INIT_by_lapic_id(uint32_t lapic_id_target){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	uint64_t ICR = make_interrupt_command(lapic_id_target, APIC_DESTSH_NO_SH, 0, 1, 0, APIC_DEL_MODE_INIT, 0);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_IPI_INIT_to_all_excluding_self(){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	uint64_t ICR = make_interrupt_command(0, APIC_DESTSH_ALL_EXCLUDING_SELF, 0, 1, 0, APIC_DEL_MODE_INIT, 0);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_IPI_INIT_deassert(){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	uint64_t ICR = make_interrupt_command(0, APIC_DESTSH_ALL_INCLUDING_SELF, 1, 0, 0, APIC_DEL_MODE_INIT, 0);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_startup_IPI(uint32_t lapic_id_target, uint8_t interrupt_vector){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	uint64_t ICR = make_interrupt_command(lapic_id_target, APIC_DESTSH_NO_SH, 0, 1, 0, APIC_DEL_MODE_START_UP, interrupt_vector);
 	wait_and_write_interrupt_command_register(ICR);
+}
+
+bool is_interrupt_lapic_generated(uint8_t interrupt_vector){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	//the ISR is a 256 bit wide register
+	//starting at APIC_REG_OFFSET_IN_SERVICE_FIRST
+	//each dword is then at a register offseted by the previous by +0x10
+	uint32_t register_number = interrupt_vector / 32;
+	uint32_t register_value_bit_number = interrupt_vector % 32;
+	uint32_t register_offset = APIC_REG_OFFSET_IN_SERVICE_FIRST + (register_number*0x10);
+
+	uint32_t ISR_dword = read_32_lapic_register(register_offset);
+	return (ISR_dword & (1 << register_value_bit_number)) != 0;
 }
 
 void print_lapic_state(){

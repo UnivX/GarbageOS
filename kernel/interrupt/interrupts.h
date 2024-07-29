@@ -3,6 +3,10 @@
 #include "../kdefs.h"
 #include "pic.h"
 
+//these vector numbers are reserved for the pic use:
+// 32-48 / 0x20-0x30
+
+//these vector numbers are reserved for apic use
 #define APIC_ERROR_VECTOR 0xf0
 #define APIC_SPURIOUS_INTERRUPTS_VECTOR 0xff
 
