@@ -48,6 +48,17 @@ inline void disable_interrupts(){
 	asm volatile("cli");
 }
 
+inline InterruptState disable_and_save_interrupts(){
+	uint32_t eflags = __builtin_ia32_readeflags_u64();
+	const uint32_t interrupt_enable_flag = 1 << 9;
+	return eflags == interrupt_enable_flag;
+}
+
+inline void restore_interrupt_state(InterruptState state){
+	if(state == true)
+		enable_interrupts();
+}
+
 inline void halt(){
 	disable_interrupts();
 	volatile bool wtrue = true;

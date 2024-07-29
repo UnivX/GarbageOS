@@ -11,6 +11,8 @@ inline void memory_fence(){
  *PML4[512] -> PDPT[512] -> PDT[512] -> PT[512]
  */
 
+
+
 void* get_active_paging_structure(){
 	uint64_t cr3;
 	asm("mov %%cr3, %0" : "=r"(cr3) : : "cc");

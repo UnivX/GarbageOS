@@ -3,7 +3,8 @@
 #include "../kdefs.h"
 #include "pic.h"
 
-#define APIC_ERROR_VECTOR 64
+#define APIC_ERROR_VECTOR 0xf0
+#define APIC_SPURIOUS_INTERRUPTS_VECTOR 0xff
 
 typedef struct InterruptInfo{
 	uint64_t error;

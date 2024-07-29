@@ -1,6 +1,4 @@
 #pragma once
-#include "../kdefs.h"
-#include "../hal.h"
 #include "../acpi/madt.h"
 #include "../mem/heap.h"
 #include "../mem/vmm.h"
@@ -38,20 +36,29 @@
 #define APIC_REGISTER_SPACE_SIZE 4096
 #define SUPPRESS_EOI_BROADCAST_VERSION_FLAG 1 << 23
 
-typedef enum APIC_delivery_mode{
+typedef enum APICDeliveryMode{
 	APIC_DEL_MODE_FIXED = 0b000,
+	APIC_DEL_MODE_LOWEST_PRIORITY = 0b001,
 	APIC_DEL_MODE_SMI = 0b010,
 	APIC_DEL_MODE_NMI = 0b100,
 	APIC_DEL_MODE_INIT = 0b101,
+	APIC_DEL_MODE_START_UP = 0b110,
 	APIC_DEL_MODE_EXT_INT = 0b111
-} APIC_delivery_mode;
+} APICDeliveryMode;
+
+typedef enum APICDestinationShorthand{
+	APIC_DESTSH_NO_SH = 0b00,
+	APIC_DESTSH_SELF = 0b01,
+	APIC_DESTSH_ALL_INCLUDING_SELF = 0b10,
+	APIC_DESTSH_ALL_EXCLUDING_SELF = 0b11
+} APICDestinationShorthand;
 
 //do not support X2APIC
 
 typedef struct LocalAPIC{
 	uint32_t APIC_ID;
 	ICS_local_APIC* ics_lapic;
-	ICS_local_APIC_NMI* ics_lapic_nmi;
+	ICS_local_APIC_NMI* ics_lapic_nmi;//may be null
 } LocalAPIC;
 
 typedef struct LAPICSubsystemData{
@@ -64,3 +71,10 @@ typedef struct LAPICSubsystemData{
 bool init_apic();
 uint32_t get_logical_core_lapic_id();
 void print_lapic_state();
+
+void send_IPI_by_destination_shorthand(APICDestinationShorthand dest_sh, uint8_t interrupt_vector);
+void send_IPI_by_lapic_id(uint32_t lapic_id_target, uint8_t interrupt_vector);
+void send_IPI_INIT_by_lapic_id(uint32_t lapic_id_target);
+void send_IPI_INIT_to_all_excluding_self();
+void send_IPI_INIT_deassert();//send to all logical cores
+bool is_IPI_sending_complete();

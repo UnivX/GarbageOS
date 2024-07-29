@@ -14,11 +14,11 @@
 
 #include "test/kheap_test.h"
 
+//TODO: add PAT
 //TODO: add lazy page mapping
 //TODO: implement uefi bootloader for sweet acpi 2.0 tables
 //TODO: test acpi 2.0
 //TODO: clear all paging map levels when deallocating virtual memory
-//TODO: test the PIC
 //TODO: prevent nested page fault
 
 void general_protection_fault(InterruptInfo info){
@@ -164,8 +164,11 @@ uint64_t kmain(){
 	print("\n");
 
 	print( madt_has_pic(get_MADT()) ? "the PC has PIC\n" : "the PC doesnt have PIC\n");
-	print( init_apic() ? "APIC init OK" : "APIC init BAD");
+	print( init_apic() ? "APIC init OK\n" : "APIC init BAD\n");
 	print_lapic_state();
+
+	//do a self interrupt with the local apic
+	send_IPI_by_destination_shorthand(APIC_DESTSH_SELF, 0x41);
 
 	finalize_kio();
 	return 0;

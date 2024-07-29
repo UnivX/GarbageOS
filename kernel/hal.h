@@ -76,6 +76,7 @@ typedef struct PagingMapState{
 	bool mmap_present;
 } PagingMapState;
 
+typedef bool InterruptState;
 
 /*
  * HAL interface:
@@ -157,6 +158,9 @@ void memcpy(void* dst, const void* src, size_t size);
 
 void enable_interrupts();
 void disable_interrupts();
+InterruptState disable_and_save_interrupts();
+void restore_interrupt_state(InterruptState state);
+
 void set_privilege_change_interrupt_stack(void* stack);
 void halt();
 bool cpu_has_msr();

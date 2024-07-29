@@ -31,6 +31,7 @@ void interrupt_routine(uint64_t interrupt_number, uint64_t error){
 	if(interrupt_number-PIC_IDT_START < PIC_IDT_SIZE){
 		bool is_spurious = is_pic_interrupt_spurious(interrupt_number);
 		pic_ack_interrupt(interrupt_number, is_spurious);
+		kpanic(-1);
 		return;
 	}
 
