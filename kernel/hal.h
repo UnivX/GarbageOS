@@ -76,6 +76,15 @@ typedef struct PagingMapState{
 	bool mmap_present;
 } PagingMapState;
 
+//if a frequency is 0MHz then the real frequency is unkwown
+typedef struct CPUFrequencies{
+	uint64_t core_base_freq; //in MHz
+	uint64_t core_maximum_freq; //in MHz
+	uint64_t core_crystal_clock_freq; //in MHz
+	uint64_t bus_freq; //in MHz
+	
+} CPUFrequencies;
+
 typedef bool InterruptState;
 
 /*
@@ -166,3 +175,5 @@ void halt();
 bool cpu_has_msr();
 void get_cpu_msr(uint32_t msr, uint32_t *lo, uint32_t *hi);
 void set_cpu_msr(uint32_t msr, uint32_t lo, uint32_t hi);
+//may return invalid 0Hz frequencies
+void get_cpu_frequencies(CPUFrequencies* out);

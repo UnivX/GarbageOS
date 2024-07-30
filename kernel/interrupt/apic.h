@@ -60,6 +60,8 @@ typedef struct LocalAPIC{
 	ICS_local_APIC* ics_lapic;
 	ICS_local_APIC_NMI* ics_lapic_nmi;//may be null
 	bool enabled;
+	uint64_t apic_timer_counter;
+	uint64_t frequency;
 } LocalAPIC;
 
 typedef struct LAPICSubsystemData{

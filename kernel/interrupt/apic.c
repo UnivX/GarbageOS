@@ -11,6 +11,9 @@
 static LAPICSubsystemData lapic_gdata = {NULL, 0, NULL, NULL};
 
 static bool init_current_logical_core_lapic();
+
+//check if it's the deiscrete apic chip(82489DX)
+static bool is_lapic_discrete_82489DX();
 static void apic_error_interrupt_handler(InterruptInfo info);
 void send_lapic_EOI();
 
@@ -365,6 +368,11 @@ bool is_interrupt_lapic_generated(uint8_t interrupt_vector){
 
 	uint32_t ISR_dword = read_32_lapic_register(register_offset);
 	return (ISR_dword & (1 << register_value_bit_number)) != 0;
+}
+
+bool is_lapic_discrete_82489DX(){
+	uint32_t version = read_32_lapic_register(APIC_REG_OFFSET_LAPIC_VERSION) & 0xff;
+	return version < 0x10;
 }
 
 void print_lapic_state(){

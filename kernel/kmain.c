@@ -11,6 +11,7 @@
 #include "acpi/acpi.h"
 #include "acpi/madt.h"
 #include "interrupt/apic.h"
+#include "interrupt/ioapic.h"
 
 #include "test/kheap_test.h"
 
@@ -167,11 +168,15 @@ uint64_t kmain(){
 
 	print( madt_has_pic(get_MADT()) ? "the PC has PIC\n" : "the PC doesnt have PIC\n");
 	print( init_apic() ? "APIC init OK\n" : "APIC init BAD\n");
+	print( init_ioapic() ? "IOAPIC init OK\n" : "IOAPIC init BAD\n");
 
 	//do a self interrupt with the local apic
 	send_IPI_by_destination_shorthand(APIC_DESTSH_SELF, 0x41);
 
 	print_lapic_state();
+
+	print( is_kheap_corrupted() ? "KERNEL HEAP CORRUPTED" : "KERNEL HEAP OK" );
+	//print("\n");
 
 	finalize_kio();
 	return 0;

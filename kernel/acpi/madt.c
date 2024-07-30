@@ -50,6 +50,17 @@ uint64_t count_number_of_local_apic(const MADT* madt){
 	return count;
 }
 
+uint64_t count_ICS_header_instances(const MADT* madt, uint8_t ICS_header_type){
+	KASSERT(madt != NULL);
+	uint64_t count = 0;
+	for(ICS_header* header = get_first_ICS_header(madt); header != NULL; header = get_next_ICS_header(madt, header)){
+		if(header->type == ICS_header_type){
+			count++;
+		}
+	}
+	return count;
+}
+
 bool madt_has_pic(const MADT* madt){
 	KASSERT(madt != NULL);
 	return (madt->flags & MADT_FLAG_PCAT_COMPATIBLE) != 0;

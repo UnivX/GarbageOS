@@ -124,3 +124,16 @@ void set_cpu_msr(uint32_t msr, uint32_t lo, uint32_t hi)
 {
    asm volatile("wrmsr" : : "a"(lo), "d"(hi), "c"(msr));
 }
+
+void get_cpu_frequencies(CPUFrequencies* out){
+	unsigned int eax=0, ebx=0, ecx=0, edx=0;
+
+	__get_cpuid(0x16, &eax, &ebx, &ecx, &edx);
+	out->core_base_freq = eax & 0x00ff;
+	out->core_maximum_freq = ebx & 0x00ff;
+	out->bus_freq = ecx & 0x00ff;
+
+	//get core crystal freq
+	__get_cpuid(0x15, &eax, &ebx, &ecx, &edx);
+	out->core_crystal_clock_freq = ecx;
+}

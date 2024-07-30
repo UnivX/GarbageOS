@@ -119,4 +119,5 @@ ICS_header* get_first_ICS_header(const MADT* madt);
 //return NULL when there is no next header
 ICS_header* get_next_ICS_header(const MADT* madt, const ICS_header* header);
 uint64_t count_number_of_local_apic(const MADT* madt);//this doesnt count X2APIC with IDs > 255
+uint64_t count_ICS_header_instances(const MADT* madt, uint8_t ICS_header_type);
 bool madt_has_pic(const MADT* madt);
