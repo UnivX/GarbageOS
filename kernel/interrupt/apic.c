@@ -122,7 +122,7 @@ bool init_apic(){
 	fill_apic_array(madt);
 
 	KASSERT((uint64_t)lapic_gdata.lapic_base_address % PAGE_SIZE == 0);
-	lapic_gdata.register_space_mapping = memory_map(lapic_gdata.lapic_base_address, APIC_REGISTER_SPACE_SIZE, PAGE_WRITABLE | PAGE_CACHE_DISABLE);
+	lapic_gdata.register_space_mapping = memory_map((void*)lapic_gdata.lapic_base_address, APIC_REGISTER_SPACE_SIZE, PAGE_WRITABLE | PAGE_CACHE_DISABLE);
 
 	install_interrupt_handler(APIC_ERROR_VECTOR, apic_error_interrupt_handler);
 
@@ -147,11 +147,11 @@ void* get_register_space_start_addr(){
 }
 
 void write_32_lapic_register(uint64_t register_offset, uint32_t value){
-	*((uint32_t*)(get_register_space_start_addr() + register_offset)) = value;
+	*((volatile uint32_t*)(get_register_space_start_addr() + register_offset)) = value;
 }
 
 uint32_t read_32_lapic_register(uint64_t register_offset){
-	return *((uint32_t*)(get_register_space_start_addr() + register_offset));
+	return *((volatile uint32_t*)(get_register_space_start_addr() + register_offset));
 }
 
 void write_64_lapic_register(uint64_t reg_low, uint64_t value){
@@ -162,8 +162,8 @@ void write_64_lapic_register(uint64_t reg_low, uint64_t value){
 	//(we do not have race condition because the registers are r/w-able only from the current logical core)
 	InterruptState interrupt_state = disable_and_save_interrupts();
 	//critical section start
-	*((uint32_t*)(get_register_space_start_addr() + reg_low)) = low_value;
-	*((uint32_t*)(get_register_space_start_addr() + reg_low + 0x10)) = high_value;
+	*((volatile uint32_t*)(get_register_space_start_addr() + reg_low)) = low_value;
+	*((volatile uint32_t*)(get_register_space_start_addr() + reg_low + 0x10)) = high_value;
 	//critical section end
 	restore_interrupt_state(interrupt_state);
 }
@@ -173,8 +173,8 @@ uint64_t read_64_lapic_register(uint64_t reg_low){
 	//(we do not have race condition because the registers are r/w-able only from the current logical core)
 	InterruptState interrupt_state = disable_and_save_interrupts();
 	//critical section start
-	uint64_t low = *((uint32_t*)(get_register_space_start_addr() + reg_low));
-	uint64_t high = *((uint32_t*)(get_register_space_start_addr() + reg_low + 0x10));//offset to the next apic register
+	uint64_t low = *((volatile uint32_t*)(get_register_space_start_addr() + reg_low));
+	uint64_t high = *((volatile uint32_t*)(get_register_space_start_addr() + reg_low + 0x10));//offset to the next apic register
 	//critical section end
 	restore_interrupt_state(interrupt_state);
 	return low | (high << 32);

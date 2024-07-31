@@ -1,15 +1,32 @@
 #include "interrupts.h"
 #include "../kio.h"
 #include "apic.h"
+#include "ioapic.h"
+#include "../acpi/madt.h"
 #define MAX_INTERRUPTS 256
+
+bool pic_present = false;
 
 //array of function pointers
 InterruptHandler* handlers[MAX_INTERRUPTS];
 InterruptHandler* default_handler;
 
+void init_interrupt_controllers(){
+	MADT* madt = get_MADT();
+	if(madt == NULL)
+		kpanic(GENERIC_ERROR);
+
+	if(madt_has_pic(madt)){
+		pic_present = true;
+		init_pic();
+		disable_pic();
+	}
+
+	KASSERT(init_apic());
+	KASSERT(init_ioapics());
+}
+
 void init_interrupts(){
-	init_pic();
-	disable_pic();
 	default_handler = NULL;
 	for(int i = 0; i < MAX_INTERRUPTS; i++)
 		handlers[i] = NULL;
@@ -28,15 +45,17 @@ void install_default_interrupt_handler(InterruptHandler *handler){
 void interrupt_routine(uint64_t interrupt_number, uint64_t error){
 	KASSERT(interrupt_number < MAX_INTERRUPTS);
 
-	//we do not use the PIC but we may have to deal with PIC spurious interrupts
-	if(interrupt_number-PIC_IDT_START < PIC_IDT_SIZE){
-		bool is_spurious = is_pic_interrupt_spurious(interrupt_number);
+	if(pic_present){
+		//we do not use the PIC but we may have to deal with PIC spurious interrupts
+		if(interrupt_number-PIC_IDT_START < PIC_IDT_SIZE){
+			bool is_spurious = is_pic_interrupt_spurious(interrupt_number);
 #ifdef PRINT_ALL_SPURIOUS_INTERRUPT
-		if(is_spurious)
-			print("PIC spurious interrupt\n");
+			if(is_spurious)
+				print("PIC spurious interrupt\n");
 #endif
-		pic_ack_interrupt(interrupt_number, is_spurious);
-		return;
+			pic_ack_interrupt(interrupt_number, is_spurious);
+			return;
+		}
 	}
 
 	if(interrupt_number == APIC_SPURIOUS_INTERRUPTS_VECTOR){

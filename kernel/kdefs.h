@@ -53,7 +53,8 @@ enum ErrorCodes{
 	HEAP_CORRUPTED = 10,
 	NOT_IMPLEMENTED_ERROR = 11,
 	VMM_ERROR = 12,
-	APIC_ERROR = 13
+	APIC_ERROR = 13,
+	GENERIC_ERROR = 14
 };
 
 //a bidimensional integer vector

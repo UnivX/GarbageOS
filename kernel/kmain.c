@@ -14,7 +14,10 @@
 #include "interrupt/ioapic.h"
 
 #include "test/kheap_test.h"
+//first usable intel CPU in history for this kernel : XEON Nocona (Jun 2004)
+//first usable AMD CPU in history for this kernel? : Opteron (Apr 2003).
 
+//TODO: print PIC state
 //TODO: use the PIC's ISR to check when to send a PIC's EOI
 //TODO: check the PIC spurious interrupt handling
 //TODO: add PAT
@@ -167,13 +170,12 @@ uint64_t kmain(){
 	print("\n");
 
 	print( madt_has_pic(get_MADT()) ? "the PC has PIC\n" : "the PC doesnt have PIC\n");
-	print( init_apic() ? "APIC init OK\n" : "APIC init BAD\n");
-	print( init_ioapic() ? "IOAPIC init OK\n" : "IOAPIC init BAD\n");
 
 	//do a self interrupt with the local apic
 	send_IPI_by_destination_shorthand(APIC_DESTSH_SELF, 0x41);
 
 	print_lapic_state();
+	print_ioapic_states();
 
 	print( is_kheap_corrupted() ? "KERNEL HEAP CORRUPTED" : "KERNEL HEAP OK" );
 	//print("\n");
