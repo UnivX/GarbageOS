@@ -49,8 +49,8 @@ PSFFont get_default_PSF_font(){
 	return font;
 }
 
-bool write_PSF_char(PSFFont font, unsigned char c, Vector2i position, Pixel buffer[], Vector2i buffer_size,
-		Color background_color, Color font_color){
+bool write_PSF_char(const PSFFont font, const unsigned char c, const Vector2i position, Pixel buffer[], const Vector2i buffer_size,
+		const Color background_color, const Color font_color){
 	//if it's an extended ascii 
 	if(c & 128)
 		return false;

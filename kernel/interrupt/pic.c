@@ -1,5 +1,6 @@
 #include "pic.h"
 
+//TODO: protect PIC from race conditions
 
 void pic_ack_interrupt(uint64_t interrupt_number, bool spurious){
 	if(spurious){

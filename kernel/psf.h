@@ -31,6 +31,8 @@ typedef struct PSFFont {
 } PSFFont;
 
 
+//create a new PSF font structure from the default font
+//it is thread safe
 PSFFont get_default_PSF_font();
-bool write_PSF_char(PSFFont font, unsigned char c, Vector2i position, Pixel buffer[], Vector2i buffer_size,
-		Color background_color, Color font_color);
+bool write_PSF_char(const PSFFont font, const unsigned char c, const Vector2i position, Pixel buffer[], const Vector2i buffer_size,
+		const Color background_color, const Color font_color);

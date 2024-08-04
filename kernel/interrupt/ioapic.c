@@ -3,6 +3,7 @@
 #include "../mem/heap.h"
 #include "../kio.h"
 
+//TODO: protect internal state from race conditions
 static IOAPICSubsystemData ioapic_gdata = {NULL, 0, NULL, 0};
 static bool init_single_ioapic(IOAPIC *ioapic);
 

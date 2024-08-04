@@ -1,5 +1,8 @@
 #include "heap.h"
 
+//TODO: protect internal state from race conditions
+static Heap kheap;
+
 static uint64_t get_fixed_heap_chunk_size(HeapChunkHeader* header);
 static bool get_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
 static void set_heap_chunk_flag(HeapChunkHeader* header, uint8_t flag);
@@ -433,7 +436,6 @@ bool is_kheap_initialzed(){
 	return kheap_initialized;
 }
 
-Heap kheap;
 void kheap_init(){
 	//assert that the HEAP minimum alignment is a divisor of PAGE_SIZE
 	KASSERT(PAGE_SIZE % HEAP_ALIGNMENT == 0);

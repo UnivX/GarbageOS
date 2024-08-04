@@ -20,7 +20,7 @@ typedef struct KioState{
 //the display will be finalized during the
 //finalize_kio() function
 bool is_kio_initialized();
-void init_kio(DisplayInterface display, PSFFont font, Color background_color, Color font_color);
+void init_kio(const DisplayInterface display, const PSFFont font, const Color background_color, const Color font_color);
 void putchar(char c, bool flush);
 void print(const char* str);
 void print_uint64_hex(uint64_t n);

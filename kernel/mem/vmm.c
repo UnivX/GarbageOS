@@ -5,6 +5,8 @@
 #include "heap.h"
 #include "../kio.h"
 
+//TODO: protect internal state from race conditions
+static VirtualMemoryManager kernel_vmm;
 
 
 static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descriptor, void* start, uint64_t size);
@@ -16,8 +18,6 @@ static const char* get_vm_type_string(VirtualMemoryType vm_type);
 static uint64_t get_no_padding_size(const VirtualMemoryDescriptor* d);
 static void* get_no_padding_start_addr(const VirtualMemoryDescriptor* d);
 void page_fault(InterruptInfo info);
-
-VirtualMemoryManager kernel_vmm;
 
 //if the heap isn't already initialized return a bump allocated one
 static VirtualMemoryDescriptor* allocate_vmem_descriptor(){

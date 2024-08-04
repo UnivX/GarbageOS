@@ -8,10 +8,10 @@
 //TODO: check if it works
 //TODO: implement spinlocks
 
+//TODO: protect internal state from race conditions
 static LAPICSubsystemData lapic_gdata = {NULL, 0, NULL, NULL};
 
 static bool init_current_logical_core_lapic();
-
 //check if it's the deiscrete apic chip(82489DX)
 static bool is_lapic_discrete_82489DX();
 static void apic_error_interrupt_handler(InterruptInfo info);

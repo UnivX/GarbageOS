@@ -3,6 +3,7 @@
 #include "../hal.h"
 #include "../kio.h"
 
+//TODO: protect internal state from race conditions
 struct FrameAllocatorState frame_allocator={false, {0, NULL}, {NULL, NULL, 0}, 0, 0};
 
 bool is_frame_allocator_initialized(){

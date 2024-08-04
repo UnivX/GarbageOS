@@ -7,9 +7,10 @@
 
 bool pic_present = false;
 
+//TODO: protect internal state from race conditions
 //array of function pointers
-InterruptHandler* handlers[MAX_INTERRUPTS];
-InterruptHandler* default_handler;
+static InterruptHandler* handlers[MAX_INTERRUPTS];
+static InterruptHandler* default_handler;
 
 void init_interrupt_controllers(){
 	MADT* madt = get_MADT();

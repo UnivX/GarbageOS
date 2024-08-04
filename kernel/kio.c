@@ -1,10 +1,11 @@
 #include "kio.h"
 #include "mem/heap.h"
 
-KioState kio_state;
+//TODO: protect internal state from race conditions
+static KioState kio_state;
 static bool is_initialized = false;
 
-void init_kio(DisplayInterface display, PSFFont font, Color background_color, Color font_color){
+void init_kio(const DisplayInterface display, const PSFFont font, const Color background_color, const Color font_color){
 	is_initialized = true;
 	kio_state.buffer = kmalloc(display.info.height*display.info.width*sizeof(Pixel));
 	kio_state.display = display;
