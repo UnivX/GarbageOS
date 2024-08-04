@@ -17,6 +17,7 @@
 //first usable intel CPU in history for this kernel : XEON Nocona (Jun 2004)
 //first usable AMD CPU in history for this kernel? : Opteron (Apr 2003).
 
+//TODO: check APIC existence before usage
 //TODO: print PIC state
 //TODO: use the PIC's ISR to check when to send a PIC's EOI
 //TODO: check the PIC spurious interrupt handling

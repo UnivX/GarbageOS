@@ -183,7 +183,7 @@ void setIOAPICInterruptRedirection(IOAPICInterruptRedirection redirection, uint6
 	uint64_t interrupt_line = irq - ioapic->ics_ioapic->global_system_interrupt_base;
 	//caluculate the redirection table entry offset
 	uint64_t redtbl_offset = IOREDTBL_OFFSET_START + (interrupt_line*2);
-	write_64_ioapic_register(ioapic, redtbl_offset, ioredirection_entry);
+
 }
 
 void print_ioapic_states(){
@@ -249,10 +249,9 @@ uint32_t read_32_ioapic_register(const IOAPIC *ioapic, const uint8_t offset){
 }
 
 static void write_64_ioapic_register(const IOAPIC *ioapic, const uint8_t offset, const uint64_t value){
+	InterruptState is = disable_and_save_interrupts();
 	uint32_t low_value = value & 0x00000000ffffffff;
 	uint32_t high_value = (value >> 32) & 0x00000000ffffffff;
-
-	InterruptState is = disable_and_save_interrupts();
 
 	write_32_ioapic_register(ioapic, offset, low_value);
 	write_32_ioapic_register(ioapic, offset+1, high_value);
@@ -261,12 +260,5 @@ static void write_64_ioapic_register(const IOAPIC *ioapic, const uint8_t offset,
 }
 
 static uint64_t read_64_ioapic_register(const IOAPIC *ioapic, const uint8_t offset){
-	uint64_t value = 0;
 
-	InterruptState is = disable_and_save_interrupts();
-	value |= read_32_ioapic_register(ioapic, offset);
-	value |= (uint64_t)read_32_ioapic_register(ioapic, offset+1) << 32;
-	restore_interrupt_state(is);
-
-	return value;
 }

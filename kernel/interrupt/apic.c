@@ -232,8 +232,8 @@ void setup_lapic_nmi_lint(){
 		}
 		KASSERT(lint_reg != 0);
 		//getting the polarity and the trigger_mode from the flags of the ics_lapic_nmi
-		uint8_t polarity_flag = lapic_data->ics_lapic_nmi->flags & 0b00000011;
-		uint8_t trigger_mode_flag = lapic_data->ics_lapic_nmi->flags & 0b00001100;
+		uint8_t polarity_flag = lapic_data->ics_lapic_nmi->flags & MPS_INTI_POLARITY_MASK;
+		uint8_t trigger_mode_flag = lapic_data->ics_lapic_nmi->flags & MPS_INTI_TRIGGER_MODE_MASK;
 
 		//standard polarity and trigger mode values for the NMI
 		bool polarity = 0;//active low

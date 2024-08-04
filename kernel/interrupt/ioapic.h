@@ -32,5 +32,28 @@ typedef struct IOAPICSubsystemData {
 	uint64_t source_override_array_size;
 } IOAPICSubsystemData;
 
+//only supported destination mode is the physical
+typedef struct IOAPICInterruptRedirection{
+	bool reidirect_to_lowest_priority;//if this flag is set the interrupt will be sent to the apic with the lowest priority register(AKA cr8)
+	uint8_t apic_id_to_redirect;//it uses only the first 4 bit for a maximum of 16 addressable CPUs
+	uint8_t trigger_mode;//1 = level sensitive, 0 = edge sensitive
+	uint8_t polarity;//1 = low active, 0 = high active
+	bool mask;//1 = masked(no interrupt will be received), 0 = not masked (interrupt will be received)
+	uint8_t vector;//interrupt vector to use
+	
+} IOAPICInterruptRedirection;
+
+typedef struct ISA_irq_fix{
+	//these flags are true if the polarity or trigger have changed from the ISA standard and need to be overrided
+	bool irq_override;
+	bool polarity_override;
+	bool trigger_override;
+
+	uint64_t irq;//the new irq of the APIC if the override is needed
+	uint8_t polarity;//polarity value if override is needed(same values as the IOAPICInterruptRedirection)
+	uint8_t trigger_mode;//trigger_mode value if override is needed(same values as the IOAPICInterruptRedirection)
+} ISA_irq_fix;
+
 bool init_ioapics();
 void print_ioapic_states();
+void setIOAPICInterruptRedirection(IOAPICInterruptRedirection redirection, uint64_t irq);
