@@ -551,8 +551,8 @@ void print_page_fault_error(uint64_t error){
 }
 
 void page_fault(InterruptInfo info){
-#ifdef HALT_PAGE_FAULT
-	halt();
+#ifdef FREEZE_ON_PAGE_FAULT
+	freeze_cpu();
 #endif
 
 	uint64_t error = info.error;

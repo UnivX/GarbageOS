@@ -10,6 +10,7 @@ bool pic_present = false;
 //TODO: protect internal state from race conditions
 //array of function pointers
 static InterruptHandler* handlers[MAX_INTERRUPTS];
+static void* extra_data_array[MAX_INTERRUPTS];
 static InterruptHandler* default_handler;
 
 void init_interrupt_controllers(){
@@ -29,8 +30,10 @@ void init_interrupt_controllers(){
 
 void init_interrupts(){
 	default_handler = NULL;
-	for(int i = 0; i < MAX_INTERRUPTS; i++)
+	for(int i = 0; i < MAX_INTERRUPTS; i++){
 		handlers[i] = NULL;
+		extra_data_array[i] = NULL;
+	}
 }
 
 void install_interrupt_handler(uint64_t interrupt_number, InterruptHandler *handler){
@@ -40,6 +43,11 @@ void install_interrupt_handler(uint64_t interrupt_number, InterruptHandler *hand
 
 void install_default_interrupt_handler(InterruptHandler *handler){
 	default_handler = handler;
+}
+
+void set_interrupt_handler_extra_data(uint64_t interrupt_number, void* extra_data){
+	KASSERT(interrupt_number < MAX_INTERRUPTS);
+	extra_data_array[interrupt_number] = extra_data;
 }
 
 //this function will be called by some assembly defined in the HAL
@@ -67,12 +75,16 @@ void interrupt_routine(uint64_t interrupt_number, uint64_t error){
 		return;
 	}
 
-	InterruptInfo info = {error, interrupt_number};
+	InterruptInfo info = {error, interrupt_number, extra_data_array[interrupt_number]};
+	volatile uint64_t check = 0xc0ffebabe;
 
 	if(handlers[interrupt_number] != NULL)
 		handlers[interrupt_number](info);
 	else if (default_handler != NULL)
 		default_handler(info);
+
+	if(check != 0xc0ffebabe)
+		kpanic(-1);
 
 	if(is_local_apic_initialized()){
 		if(is_interrupt_lapic_generated(interrupt_number)){

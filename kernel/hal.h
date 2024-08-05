@@ -167,11 +167,13 @@ void memcpy(void* dst, const void* src, size_t size);
 
 void enable_interrupts();
 void disable_interrupts();
+bool are_interrupts_enabled();
 InterruptState disable_and_save_interrupts();
 void restore_interrupt_state(InterruptState state);
 
 void set_privilege_change_interrupt_stack(void* stack);
 void halt();
+void freeze_cpu();
 bool cpu_has_msr();
 void get_cpu_msr(uint32_t msr, uint32_t *lo, uint32_t *hi);
 void set_cpu_msr(uint32_t msr, uint32_t lo, uint32_t hi);

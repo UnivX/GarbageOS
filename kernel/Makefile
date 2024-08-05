@@ -1,4 +1,4 @@
-CROSS_PATH=$${HOME}/opt/cross/bin
+CROSS_PATH=$${HOME}/cross/bin
 CC=${CROSS_PATH}/x86_64-elf-gcc
 AS=${CROSS_PATH}/x86_64-elf-as
 CFLAGS =-mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -std=gnu99 -ffreestanding -Wall -Wextra -g -O2 -fstack-protector-strong

@@ -9,9 +9,10 @@
 #include "kio.h"
 #include "elf.h"
 #include "acpi/acpi.h"
-#include "acpi/madt.h"
+#include "acpi/madt.h" 
 #include "interrupt/apic.h"
 #include "interrupt/ioapic.h"
+#include "timer/pit.h"
 
 #include "test/kheap_test.h"
 //first usable intel CPU in history for this kernel : XEON Nocona (Jun 2004)
@@ -28,6 +29,8 @@
 //TODO: test acpi 2.0
 //TODO: clear all paging map levels when deallocating virtual memory
 //TODO: prevent nested page fault
+
+PIT pit;
 
 void general_protection_fault(InterruptInfo info){
 	print("[GENERAL PROTECTION FAULT] error: ");
@@ -122,10 +125,18 @@ uint64_t kmain(){
 	}
 	print("\n");
 	debug_print_kernel_vmm();
+
+	print("initializing PIT timer\n");
+	pit = create_PIT(0x88);
+	initialize_PIT_timer(&pit);
+	
 	//return 0;
-	print("\nSleeping...\n");
+	print("\nSleeping 5s\n");
+	PIT_wait_ms(&pit, 2);
+	/*
 	for(int i = 0; i < 4000; i++)
 		io_wait();
+	*/
 
 #ifdef DO_TESTS
 	print("\n-------------------STARTING TESTS-------------------\n");

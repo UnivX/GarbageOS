@@ -41,17 +41,23 @@ inline void io_wait(){
 }
 
 inline void enable_interrupts(){
-	asm volatile("sti");
+	asm volatile("sti" ::: "memory");
 }
 
 inline void disable_interrupts(){
-	asm volatile("cli");
+	asm volatile("cli" ::: "memory");
+}
+
+inline bool are_interrupts_enabled(){
+	uint32_t eflags = __builtin_ia32_readeflags_u64();
+	const uint32_t interrupt_enable_flag = 1 << 9;
+	return (eflags & interrupt_enable_flag) != 0;
 }
 
 inline InterruptState disable_and_save_interrupts(){
-	uint32_t eflags = __builtin_ia32_readeflags_u64();
-	const uint32_t interrupt_enable_flag = 1 << 9;
-	return eflags == interrupt_enable_flag;
+	bool state = are_interrupts_enabled();
+	disable_interrupts();
+	return state;
 }
 
 inline void restore_interrupt_state(InterruptState state){
@@ -60,10 +66,14 @@ inline void restore_interrupt_state(InterruptState state){
 }
 
 inline void halt(){
+	asm volatile("hlt" : : : "memory");
+}
+
+inline void freeze_cpu(){
 	disable_interrupts();
 	volatile bool wtrue = true;
 	while(wtrue){
-		asm volatile("hlt" : : : "memory");
+		halt();
 		wtrue = true;
 	}
 	return;
