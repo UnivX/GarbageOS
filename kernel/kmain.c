@@ -127,16 +127,15 @@ uint64_t kmain(){
 	debug_print_kernel_vmm();
 
 	print("initializing PIT timer\n");
-	pit = create_PIT(0x88);
+	pit = create_PIT(0x41);
 	initialize_PIT_timer(&pit);
 	
 	//return 0;
-	print("\nSleeping 5s\n");
-	PIT_wait_ms(&pit, 2);
-	/*
-	for(int i = 0; i < 4000; i++)
-		io_wait();
-	*/
+	print("\nSleeping 3s\n");
+	PIT_wait_ms(&pit, 3000);
+	
+	//for(int i = 0; i < 4000; i++)
+		//io_wait();
 
 #ifdef DO_TESTS
 	print("\n-------------------STARTING TESTS-------------------\n");
@@ -191,7 +190,11 @@ uint64_t kmain(){
 	print_ioapic_states();
 
 	print( is_kheap_corrupted() ? "KERNEL HEAP CORRUPTED" : "KERNEL HEAP OK" );
-	//print("\n");
+	print("\n");
+
+	print("PIT ticks: ");
+	print_uint64_dec(get_PIT_tick_count(&pit));
+	print("\n");
 
 	finalize_kio();
 	return 0;

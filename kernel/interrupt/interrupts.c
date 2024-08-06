@@ -93,8 +93,8 @@ void interrupt_routine(uint64_t interrupt_number, uint64_t error){
 			print("sending local apic(id=");
 			print_uint64_dec(get_logical_core_lapic_id());
 			print(") EOI\n");
-			send_lapic_EOI();
 #endif
+			send_lapic_EOI();
 		}
 	}
 	return;

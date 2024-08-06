@@ -9,7 +9,7 @@ PIT create_PIT(uint8_t interrupt_vector){
 	pit.channel_0_initialized = false;
 	pit.channel_2_initialized = false;
 	pit.interrupt_vector = interrupt_vector;
-	pit.tic_counter = 0;
+	pit.tick_counter = 0;
 	return pit;
 }
 
@@ -66,9 +66,13 @@ void set_mode0_on_channel0(PIT* pit, uint16_t counter_value){
 void set_mode2_on_channel0(PIT* pit, uint16_t counter_value){
 	//TODO: check if the pit is already counting(sync primitive)
 	uint8_t control_word = make_control_word(0, READ_WRITE_LSB_FIRST_MSB_THEN, 2);
+	uint8_t counter_value_low = counter_value;
+	uint8_t counter_value_high = counter_value >> 8;
+
 	InterruptState istate = disable_and_save_interrupts();
 	outb(PIT_MODE_COMMAND_PORT, control_word);
-	outw(PIT_CHANNEL_0_DATA_PORT, counter_value);
+	outb(PIT_CHANNEL_0_DATA_PORT, counter_value_low);
+	outb(PIT_CHANNEL_0_DATA_PORT, counter_value_high);
 	restore_interrupt_state(istate);
 }
 
@@ -82,27 +86,27 @@ void initialize_PIT_timer(PIT* pit){
 	enable_PIT_irq(pit);
 }
 
-uint64_t get_PIT_tic_count(PIT* pit){
-	uint64_t tics = 0;
+uint64_t get_PIT_tick_count(PIT* pit){
+	uint64_t ticks = 0;
 	InterruptState istate = disable_and_save_interrupts();
-	tics = pit->tic_counter;
+	ticks = pit->tick_counter;
 	restore_interrupt_state(istate);
-	return tics;
+	return ticks;
 }
 
 void PIT_wait_ms(PIT* pit, uint32_t ms){
 	//interrupts MUST be enabled for the wait to work
 	KASSERT(are_interrupts_enabled());
-	uint64_t starting_tics = get_PIT_tic_count(pit);
-	while(get_PIT_tic_count(pit) - starting_tics < ms)
+	uint64_t starting_ticks = get_PIT_tick_count(pit);
+	while(get_PIT_tick_count(pit) - starting_ticks < ms)
 		halt();//wait till next interrupt
 	return;
 }
 
 void PIT_interrupt_handler(InterruptInfo info){
-	//InterruptState istate = disable_and_save_interrupts();
+	InterruptState istate = disable_and_save_interrupts();
 	PIT* pit = (PIT*)info.extra_data;
-	pit->tic_counter++;
-	//restore_interrupt_state(istate);
+	pit->tick_counter++;
+	restore_interrupt_state(istate);
 	return;
 }

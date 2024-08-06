@@ -45,9 +45,19 @@ mov %ds, %ax
 push %ax
 mov %es, %ax
 push %ax
+
+#stack alignment to 16
+push %rax
+push %ax
+push %ax
 .endm
 
 .macro pop_context
+#remove stack alignment to 16
+pop %ax
+pop %ax
+pop %rax
+
 pop %ax
 mov %ax, %es
 pop %ax

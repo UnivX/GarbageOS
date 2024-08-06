@@ -13,7 +13,7 @@
 
 typedef struct PIT{
 	//TODO make it atomic
-	uint64_t tic_counter;//each tic is 1ms
+	uint64_t tick_counter;//each tick is 1ms
 	uint8_t interrupt_vector;
 	bool channel_0_initialized;
 	//channel 1 shall not be used
@@ -22,6 +22,6 @@ typedef struct PIT{
 
 PIT create_PIT(uint8_t interrupt_vector);
 void initialize_PIT_timer(PIT* pit);
-//tic is in ms, interrupts are needed for a 
-uint64_t get_PIT_tic_count(PIT* pit);
+//tick is in ms, interrupts are needed for a 
+uint64_t get_PIT_tick_count(PIT* pit);
 void PIT_wait_ms(PIT* pit, uint32_t ms);
