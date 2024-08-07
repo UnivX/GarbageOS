@@ -76,15 +76,11 @@ void interrupt_routine(uint64_t interrupt_number, uint64_t error){
 	}
 
 	InterruptInfo info = {error, interrupt_number, extra_data_array[interrupt_number]};
-	volatile uint64_t check = 0xc0ffebabe;
 
 	if(handlers[interrupt_number] != NULL)
 		handlers[interrupt_number](info);
 	else if (default_handler != NULL)
 		default_handler(info);
-
-	if(check != 0xc0ffebabe)
-		kpanic(-1);
 
 	if(is_local_apic_initialized()){
 		if(is_interrupt_lapic_generated(interrupt_number)){

@@ -96,6 +96,14 @@ uint64_t kmain(){
 	Color font_color = {0,255,0,255};
 	PSFFont font = get_default_PSF_font();
 	init_kio(display, font, background_color, font_color);
+
+	print("initializing PIT timer\n");
+	pit = create_PIT(0x41);
+	uint64_t pit_real_freq = initialize_PIT_timer(&pit, 1000);
+	print("PIT frequency: ");
+	print_uint64_dec(pit_real_freq);
+	print("\n");
+
 	print_elf_info();
 
 	print("\nMEMORY MAP:\n");
@@ -126,13 +134,10 @@ uint64_t kmain(){
 	print("\n");
 	debug_print_kernel_vmm();
 
-	print("initializing PIT timer\n");
-	pit = create_PIT(0x41);
-	initialize_PIT_timer(&pit);
 	
 	//return 0;
-	print("\nSleeping 3s\n");
-	PIT_wait_ms(&pit, 3000);
+	print("\nSleeping 10s\n");
+	PIT_wait_ms(&pit, 10000);
 	
 	//for(int i = 0; i < 4000; i++)
 		//io_wait();
@@ -192,8 +197,11 @@ uint64_t kmain(){
 	print( is_kheap_corrupted() ? "KERNEL HEAP CORRUPTED" : "KERNEL HEAP OK" );
 	print("\n");
 
-	print("PIT ticks: ");
-	print_uint64_dec(get_PIT_tick_count(&pit));
+	print("seconds passed from pit init: ");
+	uint64_t ms = get_ms_from_tick_count(&pit, get_PIT_tick_count(&pit));
+	print_uint64_dec(ms/1000);
+	print(".");
+	print_uint64_dec(ms%1000);
 	print("\n");
 
 	finalize_kio();

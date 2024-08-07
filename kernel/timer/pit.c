@@ -76,17 +76,42 @@ void set_mode2_on_channel0(PIT* pit, uint16_t counter_value){
 	restore_interrupt_state(istate);
 }
 
-void initialize_PIT_timer(PIT* pit){
+//approximate the counter value from the frequency
+static uint16_t get_counter_value_from_frequency(uint64_t target_frequency_hz){
+	uint64_t counter_value = PIT_FREQ_HZ / target_frequency_hz;
+	uint64_t remainder = PIT_FREQ_HZ % target_frequency_hz;
+	if(remainder > PIT_FREQ_HZ/2)
+		counter_value++;
+	
+	if(counter_value > 0xffff)
+		counter_value = 0xffff;
+	return (uint16_t)counter_value;
+}
+
+//get the exact frequency from the counter_value
+static uint64_t get_frequency_hz_from_counter_value(uint16_t counter_value){
+	uint64_t freq = PIT_FREQ_HZ / counter_value;
+	uint64_t remainder = PIT_FREQ_HZ % counter_value;
+	if(remainder > PIT_FREQ_HZ/2)
+		freq++;
+	return freq;
+}
+
+uint64_t initialize_PIT_timer(PIT* pit, uint64_t target_frequency_hz){
 	//set interrupt handler
 	install_interrupt_handler(pit->interrupt_vector, PIT_interrupt_handler);
 	set_interrupt_handler_extra_data(pit->interrupt_vector, (void*)pit);
-	//PIT_FREQ_MHZ/1193 = 1000Hz
-	const uint16_t counter_value = 1193;
+
+	const uint16_t counter_value = get_counter_value_from_frequency(target_frequency_hz);
+	pit->interrupt_frequency = get_frequency_hz_from_counter_value(counter_value);//get the real frequency
+
 	set_mode2_on_channel0(pit, counter_value);
 	enable_PIT_irq(pit);
+
+	return pit->interrupt_frequency;
 }
 
-uint64_t get_PIT_tick_count(PIT* pit){
+inline uint64_t get_PIT_tick_count(PIT* pit){
 	uint64_t ticks = 0;
 	InterruptState istate = disable_and_save_interrupts();
 	ticks = pit->tick_counter;
@@ -94,11 +119,28 @@ uint64_t get_PIT_tick_count(PIT* pit){
 	return ticks;
 }
 
-void PIT_wait_ms(PIT* pit, uint32_t ms){
+inline uint64_t get_ms_from_tick_count(PIT* pit, uint64_t tick){
+	return (tick*1000)/pit->interrupt_frequency;
+}
+
+inline uint64_t get_us_from_tick_count(PIT* pit, uint64_t tick){
+	return (tick*1000000)/pit->interrupt_frequency;
+}
+
+void PIT_wait_ms(PIT* pit, uint64_t ms){
 	//interrupts MUST be enabled for the wait to work
 	KASSERT(are_interrupts_enabled());
 	uint64_t starting_ticks = get_PIT_tick_count(pit);
-	while(get_PIT_tick_count(pit) - starting_ticks < ms)
+	while(get_ms_from_tick_count(pit, get_PIT_tick_count(pit) - starting_ticks) < ms)
+		halt();//wait till next interrupt
+	return;
+}
+
+void PIT_wait_us(PIT* pit, uint64_t ms){
+	//interrupts MUST be enabled for the wait to work
+	KASSERT(are_interrupts_enabled());
+	uint64_t starting_ticks = get_PIT_tick_count(pit);
+	while(get_us_from_tick_count(pit, get_PIT_tick_count(pit) - starting_ticks) < ms)
 		halt();//wait till next interrupt
 	return;
 }

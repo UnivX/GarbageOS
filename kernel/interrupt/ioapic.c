@@ -109,7 +109,7 @@ ISA_irq_fix get_isa_fix(uint64_t irq){
 	for(uint64_t i = 0; i < ioapic_gdata.source_override_array_size; i++){
 		ICS_interrupt_source_override* ics_iso = ioapic_gdata.source_override_array[i];
 		if(ics_iso->source == irq){
-			print("ioapic isa fix!");
+			print("ioapic isa fix!\n");
 			fix.irq_override = true;
 			fix.irq = ics_iso->global_system_interrupt;
 			//if it's not bus conform
