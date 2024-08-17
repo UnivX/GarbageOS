@@ -6,25 +6,48 @@
 #include "../mem/vmm.h"
 #include "../util/sync_types.h"
 #include "../kio.h"
+#include "../kernel_data.h"
+#include "../interrupt/interrupts.h""
 
 static struct MPGlobalData{
 	uint64_t initialized_APs;
 	MPInitializationData init_data;
 	APKernelData* APs_kernel_data;
-	spinlock lock;
+	soft_spinlock lock;
 } mp_gdata;
 
 void AP_entry_point(void* loaded_stack){
-	acquire_spinlock(&mp_gdata.lock);
-	mp_gdata.initialized_APs++;
-	release_spinlock(&mp_gdata.lock);
-	printf("cpu %u64 started, loaded stack : %h64\n", (uint64_t)mp_gdata.initialized_APs, (uint64_t)loaded_stack);
+	VMemHandle stack_vmem = NULL;
 
-	freeze_cpu();
+	acquire_soft_spinlock(&mp_gdata.lock);
+	mp_gdata.initialized_APs++;
+	for(uint64_t i = 0; i < mp_gdata.init_data.APs_count; i++){
+		VMemHandle vmem = mp_gdata.APs_kernel_data[i].kernel_stack;
+		if(get_vmem_addr(vmem)+get_vmem_size(vmem) == loaded_stack){
+			stack_vmem = vmem;
+			break;
+		}
+	}
+	release_soft_spinlock(&mp_gdata.lock);
+
+	KASSERT(stack_vmem != NULL);
+
+	CPUID cpuid = register_local_kernel_data_cpu();
+	init_cpu(cpuid);
+	init_local_interrupt_controllers();
+
+	LocalKernelData local_data = {stack_vmem, get_logical_core_lapic_id()};
+	set_local_kernel_data(cpuid, local_data);
+	printf("cpu %u64 started, loaded stack : %h64\n", (uint64_t)cpuid, (uint64_t)loaded_stack);
+	enable_interrupts();
+
+	while(1){
+		halt();
+	}
 }
 
 void init_APs(PIT* pit){
-	init_spinlock(&mp_gdata.lock);
+	init_soft_spinlock(&mp_gdata.lock);
 	mp_gdata.initialized_APs = 0;
 	mp_gdata.init_data.APs_count = get_number_of_usable_logical_cores()-1;
 	if(mp_gdata.init_data.APs_count == 0)

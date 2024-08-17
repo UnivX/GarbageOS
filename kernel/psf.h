@@ -23,11 +23,16 @@ typedef struct PSFHeader{
     uint32_t width;
 } __attribute__((packed)) PSFHeader;
 
+typedef struct CachedGlyph{
+	bool* pixels;
+} CachedGlyph;
+
 typedef struct PSFFont {
 	PSFHeader* header;//also the start of the file in memory
 	uint16_t ascii_table[ASCII_TABLE_SIZE];
 	bool is_valid;
 	bool has_table;
+	CachedGlyph* glyphs;
 } PSFFont;
 
 

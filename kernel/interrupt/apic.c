@@ -4,14 +4,13 @@
 #include "interrupts.h"
 #include "../hal.h"
 #include "../kdefs.h"
+#include "../util/sync_types.h"
 
 //TODO: check if it works
-//TODO: implement spinlocks
 
-//TODO: protect internal state from race conditions
 static LAPICSubsystemData lapic_gdata = {NULL, 0, NULL, NULL};
+static soft_spinlock gdata_lock;
 
-static bool init_current_logical_core_lapic();
 //check if it's the deiscrete apic chip(82489DX)
 static bool is_lapic_discrete_82489DX();
 static void apic_error_interrupt_handler(InterruptInfo info);
@@ -102,7 +101,7 @@ bool is_apic_enabled(){
 	return (low & APIC_GLOBAL_ENABLE_DISABLE_FLAG) != 0;
 }
 
-bool init_apic(){
+bool init_apic_subsystem(){
 	if(!apic_present())
 		return false;
 
@@ -113,6 +112,7 @@ bool init_apic(){
 	if(madt == NULL)
 		return false;
 
+	init_soft_spinlock(&gdata_lock);
 	uint64_t lapic_count = count_number_of_local_apic(madt);
 	lapic_gdata.lapic_base_address = get_lapic_base_address_from_madt(madt);
 	lapic_gdata.lapic_array_size = lapic_count;
@@ -125,9 +125,6 @@ bool init_apic(){
 	lapic_gdata.register_space_mapping = memory_map((void*)lapic_gdata.lapic_base_address, APIC_REGISTER_SPACE_SIZE, PAGE_WRITABLE | PAGE_CACHE_DISABLE);
 
 	install_interrupt_handler(APIC_ERROR_VECTOR, apic_error_interrupt_handler);
-
-	if(!init_current_logical_core_lapic())
-		return false;
 
 	return true;
 }
@@ -251,7 +248,7 @@ void setup_lapic_nmi_lint(){
 	}
 }
 
-bool init_current_logical_core_lapic(){
+bool init_local_apic(){
 	//enable lapic
 	const uint32_t apic_enable_flag = 0x100;
 	write_32_lapic_register(APIC_REG_OFFSET_SPURIOUS_INTERRUPT_VECTOR, APIC_SPURIOUS_INTERRUPTS_VECTOR | apic_enable_flag);

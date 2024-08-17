@@ -422,7 +422,7 @@ static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descript
 
 static VirtualMemoryDescriptor* cut_descriptor_start(VirtualMemoryDescriptor* descriptor, uint64_t size){
 	KASSERT(descriptor->type == VM_TYPE_FREE || descriptor->type == VM_TYPE_IDENTITY_MAP_FREE);
-	KASSERT(descriptor->size_bytes > size)
+	KASSERT(descriptor->size_bytes >= size)
 	KASSERT(descriptor->size_bytes % PAGE_SIZE == 0);
 	KASSERT(size % PAGE_SIZE == 0);
 	VirtualMemoryDescriptor* old_prev = descriptor->prev;

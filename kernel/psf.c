@@ -1,9 +1,32 @@
 #include "psf.h"
+#include "mem/heap.h"
+
+void calc_glyphs_caches(PSFFont* font){
+	int line_in_bytes = (font->header->width+7)/8;//divide by 8 and add 1 if there is a remainder
+	font->glyphs = kmalloc(sizeof(CachedGlyph)*font->header->numglyph);
+	uint64_t font_width = font->header->width;
+	uint64_t font_height = font->header->height;
+
+	for(uint64_t i = 0; i < font->header->numglyph; i++){
+		font->glyphs[i].pixels = kmalloc(font_width*font_height*sizeof(bool));
+		uint8_t *glyph = (uint8_t*)font->header+ font->header->headersize + i*font->header->bytesperglyph;
+		for(uint32_t y = 0; y < font_height; y++){
+			for(uint32_t x = 0; x < font_width; x++){
+				KASSERT(x+y*font_width < font_width*font_height);
+				bool is_font_pixel = (glyph[x/8] << (x%8))&0x80;
+				font->glyphs[i].pixels[x+y*font_width] = is_font_pixel;
+			}
+			//next line to display
+			glyph += line_in_bytes;
+		}
+	}
+}
 
 PSFFont get_default_PSF_font(){
 	PSFFont invalid_font = {NULL, {}, false, false};
 
 	PSFFont font;
+	font.glyphs = NULL;
 	font.header = (PSFHeader*)(void*)_binary_font_Tamsyn10x20r_psf_start;
 	font.is_valid = true; if(font.header->magic != PSF2_MAGIC_NUMBER)
 		return invalid_font;
@@ -20,6 +43,7 @@ PSFFont get_default_PSF_font(){
 	if(!font.has_table){
 		for(uint16_t i = 0; i < ASCII_TABLE_SIZE; i++)
 			font.ascii_table[i] = i;
+		calc_glyphs_caches(&font);
 		return font;
 	}
 	while(s<_binary_font_Tamsyn10x20r_psf_end) {
@@ -46,6 +70,8 @@ PSFFont get_default_PSF_font(){
 		}
         s++;
     }
+
+	calc_glyphs_caches(&font);
 	return font;
 }
 
@@ -61,6 +87,8 @@ bool write_PSF_char(const PSFFont font, const unsigned char c, const Vector2i po
 		unicode = font.ascii_table[c];
 	}
 	uint8_t *glyph = (uint8_t*)font.header+ font.header->headersize + unicode*font.header->bytesperglyph;
+	KASSERT(font.glyphs != NULL);
+	CachedGlyph cached_glyph = font.glyphs[unicode];
 	uint64_t display_offset = position.y * buffer_size.x + position.x;
 
 	Pixel font_pixel = color_to_pixel(font_color);
@@ -68,23 +96,31 @@ bool write_PSF_char(const PSFFont font, const unsigned char c, const Vector2i po
 
 	Pixel fast_pixel_arr[2] = {background_pixel, font_pixel};
 
+	uint64_t font_width = font.header->width;
+	uint64_t font_height = font.header->height;
+	for(uint32_t y = 0; y < font_height; y++){
+		for(uint32_t x = 0; x < font_width; x++){
+			KASSERT(cached_glyph.pixels != NULL);
+			volatile bool b = cached_glyph.pixels[y*font_width+x];
+			buffer[display_offset+x] = fast_pixel_arr[cached_glyph.pixels[y*font_width+x]];
+		}
+
+		//next line to display
+		display_offset += buffer_size.x;
+	}
+	/*
 	for(uint32_t y = 0; y < font.header->height; y++){
 		for(uint32_t x = 0; x < font.header->width; x++){
 			KASSERT((int64_t)(display_offset+x) < buffer_size.x*buffer_size.y);
 			bool is_font_pixel = (glyph[x/8] << (x%8))&0x80;
 			buffer[display_offset+x] = fast_pixel_arr[is_font_pixel];
-			/*
-			if(is_font_pixel)
-				buffer[display_offset+x] = font_pixel;
-			else
-				buffer[display_offset+x] = background_pixel;
-			*/
 		}
 
 		//next line to display
 		display_offset += buffer_size.x;
 		glyph += line_in_bytes;
 	}
+	*/
 	
 	return true;
 }

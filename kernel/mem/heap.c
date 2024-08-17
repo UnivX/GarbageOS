@@ -473,9 +473,17 @@ void* kmalloc(size_t size){
 	}
 
 	bool is_found_wilderness = get_heap_chunk_flag(found_chunk, HEAP_WILDERNESS_CHUNK);
-	if(get_fixed_heap_chunk_size(found_chunk) == size && !is_found_wilderness){
-		KASSERT(!is_found_wilderness);
-		alloc_chunk(&kheap, found_chunk);
+	if(!is_found_wilderness){
+		//if is the same size alloc
+		//otherwise split it first
+		//not so sure that it works fine
+		if(get_fixed_heap_chunk_size(found_chunk) == size){
+			KASSERT(!is_found_wilderness);
+			alloc_chunk(&kheap, found_chunk);
+		}else{
+			KASSERT(get_fixed_heap_chunk_size(found_chunk) >= HEAP_CHUNK_MIN_SIZE + HEAP_CHUNK_SPLIT_OVERHEAD);
+			split_chunk_and_alloc(&kheap, found_chunk, size);
+		}
 	}else{
 		//if it's not possibile to split it then we have a wilderness_chunk that isn't big enough
 		//or we have a wilderness_chunk that is equal to the requested size

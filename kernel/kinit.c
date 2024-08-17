@@ -9,6 +9,8 @@
 #include "elf.h"
 #include "acpi/acpi.h"
 #include "acpi/madt.h"
+#include "interrupt/apic.h"
+#include "kernel_data.h"
 
 void setup_virtual_memory(){
 	//SETUP MEMORY
@@ -98,19 +100,34 @@ void* kinit(){
 	set_up_arch_layer();
 	acpi_init();//it requires the virtual memory
 
+	//set up kernel data
+	init_kernel_data();
+	
 	//now that we a basic system working we can find the number of logical cores via MADT and we can 
 	//initialize the CPU data structures ecc ecc for multiple logical cores
 	MADT* madt = get_MADT();
 	uint64_t number_of_logical_cores = count_number_of_local_apic(madt);
-	final_cpu_initialization(number_of_logical_cores);
+	
+	//register cpu
+	CPUID bsp_cpuid = register_local_kernel_data_cpu();
+	//init cpu
+	init_cpu_data(number_of_logical_cores);
+	init_cpu(bsp_cpuid);
 
 	//this function enable and initialize the pic, the local apic of the BPS core and the IOAPICS
 	//to work it requires the ACPI tables and the heap
-	init_interrupt_controllers();
+	init_interrupt_controller_subsystems();
+	init_local_interrupt_controllers();
+	init_global_interrupt_controllers();
+
 	enable_interrupts();
 
 	//allocate stack
 	VMemHandle stack_mem = allocate_kernel_virtual_memory(KERNEL_STACK_SIZE, VM_TYPE_STACK, 16*KB, 64*MB);
+
+	//set local cpu_data
+	LocalKernelData local_data = {stack_mem, get_logical_core_lapic_id()};
+	set_local_kernel_data(bsp_cpuid, local_data);
 
 	return get_vmem_addr(stack_mem)+get_vmem_size(stack_mem);//return the stack top
 }

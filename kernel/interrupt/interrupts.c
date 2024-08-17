@@ -13,7 +13,15 @@ static InterruptHandler* handlers[MAX_INTERRUPTS];
 static void* extra_data_array[MAX_INTERRUPTS];
 static InterruptHandler* default_handler;
 
-void init_interrupt_controllers(){
+void init_interrupt_controller_subsystems(){
+	init_apic_subsystem();
+}
+
+void init_local_interrupt_controllers(){
+	KASSERT(init_local_apic());
+}
+
+void init_global_interrupt_controllers(){
 	MADT* madt = get_MADT();
 	if(madt == NULL)
 		kpanic(GENERIC_ERROR);
@@ -23,8 +31,6 @@ void init_interrupt_controllers(){
 		init_pic();
 		disable_pic();
 	}
-
-	KASSERT(init_apic());
 	KASSERT(init_ioapics());
 }
 

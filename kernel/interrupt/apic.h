@@ -2,6 +2,7 @@
 #include "../acpi/madt.h"
 #include "../mem/heap.h"
 #include "../mem/vmm.h"
+#include "../util/sync_types.h"
 #define CPUID_APIC_PRESENCE_EDX 1<<9
 #define IA32_APIC_BASE_MSR 0x1B
 #define APIC_GLOBAL_ENABLE_DISABLE_FLAG 1 << 11
@@ -55,11 +56,16 @@ typedef enum APICDestinationShorthand{
 
 //do not support X2APIC
 
+//the LocalAPIC and LAPICSubsystemData shall be writed only on the initialization process
+//everything else should treat the structs as read only
+//if everything else use the structs as read only we do not need syncronyzation
+
 typedef struct LocalAPIC{
 	uint32_t APIC_ID;
 	ICS_local_APIC* ics_lapic;
 	ICS_local_APIC_NMI* ics_lapic_nmi;//may be null
 	bool enabled;
+	soft_spinlock lock;
 } LocalAPIC;
 
 typedef struct LAPICSubsystemData{
@@ -69,7 +75,8 @@ typedef struct LAPICSubsystemData{
 	VMemHandle register_space_mapping;
 } LAPICSubsystemData;
 
-bool init_apic();
+bool init_apic_subsystem();
+bool init_local_apic();
 bool is_local_apic_initialized();
 uint32_t get_logical_core_lapic_id();
 void print_lapic_state();

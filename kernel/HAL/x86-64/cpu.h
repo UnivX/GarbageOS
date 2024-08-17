@@ -43,5 +43,5 @@ typedef struct GlobalCPUState{
 
 void make_CPU_states(uint64_t number_of_logical_cores);
 void delete_CPU_states();
-void load_CPU_state();
+void load_CPU_state(CPUID cpuid);
 uint16_t get_tss_selector(uint64_t cpu_id);

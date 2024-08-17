@@ -2,7 +2,7 @@ CROSS_PATH=$${HOME}/cross/bin
 CC=${CROSS_PATH}/x86_64-elf-gcc
 AS=${CROSS_PATH}/x86_64-elf-as
 NASM=nasm
-CFLAGS =-mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -std=gnu11 -ffreestanding -Wall -Wextra -g -O2 -fstack-protector-strong
+CFLAGS =-mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -std=gnu11 -ffreestanding -Wall -Wextra -g -O3 -fstack-protector-strong
 LINKERFLAGS = -T linker.ld -ffreestanding -nostdlib -lgcc -no-pie -z max-page-size=4096
 
 EXEC = krnl.bin

@@ -35,6 +35,9 @@
 /*
  * HAL structs:
  */
+//identifier of the logical cpu, all the ids are contiguos
+typedef uint32_t CPUID;
+
 /*if the size is 0 ignore the range*/
 typedef struct PhysicalMemoryRange{
 	uint64_t start_address, size;
@@ -87,6 +90,7 @@ typedef struct CPUFrequencies{
 
 typedef bool InterruptState;
 
+
 /*
  * HAL interface:
  */
@@ -119,7 +123,8 @@ void copy_paging_structure_mapping_no_page_invalidation(void* src_paging_structu
 //must be made after this function call
 void early_set_up_arch_layer();
 void set_up_arch_layer();
-void final_cpu_initialization(uint64_t number_of_logical_cores);
+void init_cpu_data(uint64_t number_of_logical_cores);
+void init_cpu(CPUID cpuid);
 void set_up_firmware_layer();
 bool is_hal_arch_initialized();
 

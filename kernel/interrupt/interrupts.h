@@ -21,7 +21,9 @@ typedef struct InterruptInfo{
 typedef void (InterruptHandler)(InterruptInfo);
 
 void init_interrupts();
-void init_interrupt_controllers();
+void init_interrupt_controller_subsystems();
+void init_global_interrupt_controllers();
+void init_local_interrupt_controllers();
 void install_interrupt_handler(uint64_t interrupt_number, InterruptHandler *handler);
 void set_interrupt_handler_extra_data(uint64_t interrupt_number, void* extra_data);
 void install_default_interrupt_handler(InterruptHandler *handler);

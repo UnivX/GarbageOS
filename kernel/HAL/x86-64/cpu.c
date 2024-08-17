@@ -117,8 +117,9 @@ void delete_CPU_states(){
 	deallocate_kernel_virtual_memory(global_cpu_state.cpu_structures_vmem);
 }
 
-void load_CPU_state(){
-	uint64_t local_cpu_id = 0;//TODO:
+void load_CPU_state(CPUID cpuid){
+	uint32_t local_cpu_id = cpuid;
+	KASSERT(local_cpu_id < global_cpu_state.number_of_logical_cores);
 	volatile uint16_t tss_selector = get_tss_selector(local_cpu_id);
 
 	load_gdt(global_cpu_state.gdt, global_cpu_state.gdt_entry_count, (GDTR*)&global_cpu_state.gdtr);

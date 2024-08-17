@@ -19,6 +19,7 @@
 //first usable intel CPU in history for this kernel : XEON Nocona (Jun 2004)
 //first usable AMD CPU in history for this kernel? : Opteron (Apr 2003).
 
+//TODO: make available all the saved registers to the interrupt routine
 //TODO: replace print with printf
 //TODO: do tlb shutdown
 //TODO: fully implement memset, memcpy, memmove and memcmp
@@ -43,14 +44,11 @@ void general_protection_fault(InterruptInfo info){
 }
 
 void interrupt_print(InterruptInfo info){
-	print("[INT ");
-	print_uint64_dec(info.interrupt_number);
-	print("] error: ");
-	print_uint64_hex(info.error);
-	print("\n");
+	printf("[INT %u64] error: %h64\n", (uint64_t)info.interrupt_number, (uint64_t)info.error);
 }
 
 void freeze_interrupt(InterruptInfo info){
+	printf("freezing cpu\n");
 	freeze_cpu();
 }
 
@@ -144,6 +142,7 @@ uint64_t kmain(){
 	
 	//return 0;
 	print("\nSleeping 2s\n");
+	kio_flush();
 	PIT_wait_ms(&pit, 2000);
 	
 	//for(int i = 0; i < 4000; i++)
@@ -193,8 +192,6 @@ uint64_t kmain(){
 
 	printf( madt_has_pic(get_MADT()) ? "the PC has PIC\n" : "the PC doesnt have PIC\n");
 
-	//do a self interrupt with the local apic
-	send_IPI_by_destination_shorthand(APIC_DESTSH_SELF, 0x41);
 
 	print_lapic_state();
 	print_ioapic_states();
@@ -204,12 +201,17 @@ uint64_t kmain(){
 	printf("starting other CPUs\n");
 	init_APs(&pit);
 	PIT_wait_ms(&pit, 100);
+	
+	printf("sending interrupt %u64 to all cpus \n", 0x51);
+	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_INCLUDING_SELF, 0x51);
 
-	uint64_t ms = get_ms_from_tick_count(&pit, get_PIT_tick_count(&pit));
 	printf("freezing other cpus\n");
-	printf("seconds passed from pit init: %u64.%u64\n\n\n", ms/1000, ms%1000);
 	install_interrupt_handler(0xf0, freeze_interrupt);
 	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_EXCLUDING_SELF, 0xf0);
+	PIT_wait_ms(&pit, 100);
+
+	uint64_t ms = get_ms_from_tick_count(&pit, get_PIT_tick_count(&pit));
+	printf("seconds passed from pit init: %u64.%u64\n\n\n", ms/1000, ms%1000);
 
 	finalize_kio();
 	return 0;
