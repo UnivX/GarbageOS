@@ -5,6 +5,7 @@
 *.slo
 *.lo
 *.o
+*.o_assembled
 *.obj
 
 # Precompiled Headers
