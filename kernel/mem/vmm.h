@@ -46,6 +46,7 @@ typedef struct VirtualMemoryManager{
 typedef VirtualMemoryDescriptor* VMemHandle;
 
 void initialize_kernel_VMM(void* paging_structure);
+const void* get_kernel_VMM_paging_structure();
 VMemHandle identity_map(void* paddr, uint64_t size);
 void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle);
 VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags);

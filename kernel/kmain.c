@@ -13,11 +13,14 @@
 #include "interrupt/apic.h"
 #include "interrupt/ioapic.h"
 #include "timer/pit.h"
+#include "mp/mp_initialization.h"
 
 #include "test/kheap_test.h"
 //first usable intel CPU in history for this kernel : XEON Nocona (Jun 2004)
 //first usable AMD CPU in history for this kernel? : Opteron (Apr 2003).
 
+//TODO: replace print with printf
+//TODO: do tlb shutdown
 //TODO: fully implement memset, memcpy, memmove and memcmp
 //TODO: check APIC existence before usage
 //TODO: print PIC state
@@ -45,6 +48,10 @@ void interrupt_print(InterruptInfo info){
 	print("] error: ");
 	print_uint64_hex(info.error);
 	print("\n");
+}
+
+void freeze_interrupt(InterruptInfo info){
+	freeze_cpu();
 }
 
 void print_elf_info(){
@@ -136,8 +143,8 @@ uint64_t kmain(){
 
 	
 	//return 0;
-	print("\nSleeping 10s\n");
-	PIT_wait_ms(&pit, 10000);
+	print("\nSleeping 2s\n");
+	PIT_wait_ms(&pit, 2000);
 	
 	//for(int i = 0; i < 4000; i++)
 		//io_wait();
@@ -182,11 +189,9 @@ uint64_t kmain(){
 
 	print_acpi_rsdt();
 
-	print("number of logical cores: ");
-	print_uint64_dec(get_number_of_usable_logical_cores());
-	print("\n");
+	printf("number of logical cores: %u64\n", get_number_of_usable_logical_cores());
 
-	print( madt_has_pic(get_MADT()) ? "the PC has PIC\n" : "the PC doesnt have PIC\n");
+	printf( madt_has_pic(get_MADT()) ? "the PC has PIC\n" : "the PC doesnt have PIC\n");
 
 	//do a self interrupt with the local apic
 	send_IPI_by_destination_shorthand(APIC_DESTSH_SELF, 0x41);
@@ -194,15 +199,17 @@ uint64_t kmain(){
 	print_lapic_state();
 	print_ioapic_states();
 
-	print( is_kheap_corrupted() ? "KERNEL HEAP CORRUPTED" : "KERNEL HEAP OK" );
-	print("\n");
+	printf( is_kheap_corrupted() ? "KERNEL HEAP CORRUPTED\n" : "KERNEL HEAP OK\n" );
+	
+	printf("starting other CPUs\n");
+	init_APs(&pit);
+	PIT_wait_ms(&pit, 100);
 
-	print("seconds passed from pit init: ");
 	uint64_t ms = get_ms_from_tick_count(&pit, get_PIT_tick_count(&pit));
-	print_uint64_dec(ms/1000);
-	print(".");
-	print_uint64_dec(ms%1000);
-	print("\n");
+	printf("freezing other cpus\n");
+	printf("seconds passed from pit init: %u64.%u64\n\n\n", ms/1000, ms%1000);
+	install_interrupt_handler(0xf0, freeze_interrupt);
+	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_EXCLUDING_SELF, 0xf0);
 
 	finalize_kio();
 	return 0;

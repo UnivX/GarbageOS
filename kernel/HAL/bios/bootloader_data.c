@@ -273,3 +273,10 @@ MemoryMapStruct get_memory_map(){
 
 	return memory_map;
 }
+
+void* get_real_mode_startup_frame(){
+	return (void*)0x2000;
+}
+void* get_real_mode_secondary_startup_frame(){
+	return (void*)0x3000;
+}

@@ -357,6 +357,12 @@ void send_startup_IPI(uint32_t lapic_id_target, uint8_t interrupt_vector){
 	wait_and_write_interrupt_command_register(ICR);
 }
 
+void send_startup_IPI_to_all_excluding_self(uint8_t interrupt_vector){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	uint64_t ICR = make_interrupt_command(0, APIC_DESTSH_ALL_EXCLUDING_SELF, 0, 1, 0, APIC_DEL_MODE_START_UP, interrupt_vector);
+	wait_and_write_interrupt_command_register(ICR);
+}
+
 bool is_interrupt_lapic_generated(uint8_t interrupt_vector){
 	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	//the ISR is a 256 bit wide register
@@ -373,6 +379,10 @@ bool is_interrupt_lapic_generated(uint8_t interrupt_vector){
 bool is_lapic_discrete_82489DX(){
 	uint32_t version = read_32_lapic_register(APIC_REG_OFFSET_LAPIC_VERSION) & 0xff;
 	return version < 0x10;
+}
+
+void start_others_APs(){
+	
 }
 
 void print_lapic_state(){

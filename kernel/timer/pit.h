@@ -12,6 +12,7 @@
 //write only
 #define PIT_MODE_COMMAND_PORT 0x42
 
+//TODO: make multi processor sleep
 typedef struct PIT{
 	//TODO make it atomic
 	uint64_t tick_counter;

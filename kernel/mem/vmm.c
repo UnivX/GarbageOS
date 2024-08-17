@@ -69,6 +69,10 @@ void initialize_kernel_VMM(void* paging_structure){
 	kernel_vmm.kernel_paging_structure = paging_structure;
 }
 
+const void* get_kernel_VMM_paging_structure(){
+	return kernel_vmm.kernel_paging_structure;
+}
+
 VMemHandle identity_map(void* paddr, uint64_t size){
 	KASSERT(paddr != NULL);
 	KASSERT(size % PAGE_SIZE == 0);

@@ -179,3 +179,6 @@ void get_cpu_msr(uint32_t msr, uint32_t *lo, uint32_t *hi);
 void set_cpu_msr(uint32_t msr, uint32_t lo, uint32_t hi);
 //may return invalid 0Hz frequencies
 void get_cpu_frequencies(CPUFrequencies* out);
+//return a frame used in the MP initialization of APs
+void* get_real_mode_startup_frame();
+void* get_real_mode_secondary_startup_frame();

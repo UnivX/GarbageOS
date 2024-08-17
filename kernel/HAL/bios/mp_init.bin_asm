@@ -1,0 +1,138 @@
+STACKS_TOP_ARRAY equ 0
+APS_COUNT_OFFSET equ 8
+AP_ENTRY_POINT equ 16
+org 0x2000
+bits 16
+
+ap_init:
+	;no interrupts and clear direction flag
+	cli
+	;set the segments
+    xor ax, ax
+    mov ss, ax
+    mov ds, ax
+	mov es, ax
+
+.acquireLock:
+    lock bts dword [spinlock], 0
+    jc .acquireLock
+
+	lidt [fake_idtr]
+
+	;set the small 256 byte stack
+	mov ax, stack_bottom
+	mov bp, ax
+	mov sp, ax
+	
+	;jump into protected mode
+	lgdt [protected_mode_gdtr]
+	mov eax, cr0
+	or al, 1 ;set Protection Enabled flag
+	and eax, ~(1<<16);clear write protect
+	mov cr0, eax
+	jmp 0x08:.protected_mode
+.protected_mode:
+	bits 32
+
+	lidt [fake_idtr]
+
+	; Enable PAE
+	mov edx, cr4
+	or edx, (1 << 5)
+	mov cr4, edx
+ 
+	; Set LME (long mode enable)
+	mov ecx, 0xC0000080
+	rdmsr
+	or eax, (1 << 8)
+	wrmsr
+
+	mov eax, [cr3_copy]
+	mov cr3, eax
+
+	;Enable paging
+	or ebx, (1 << 31)+1
+	mov cr0, ebx
+
+	;set the right gdt
+	lgdt [long_mode_gdtr]
+	mov ax, 0x10
+	mov ds, ax
+	mov ss, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
+	jmp 0x08:.long_mode
+.long_mode:
+	bits 64
+	lidt [fake_idtr]
+
+	mov rax, [init_data]
+	mov rbx, [rax + AP_ENTRY_POINT]
+
+	mov rcx, [cpu_count]
+	mov rax, [rax + STACKS_TOP_ARRAY]
+	mov rax, [rax + 8*rcx]
+	and rax, 0xfffffffffffffff0
+	mov rsp, rax
+
+	inc qword [cpu_count]
+;relase lock
+    lock btr dword [spinlock],0
+
+	;call c entry point
+	mov rdi, rsp
+	cld
+	call rbx
+
+.freeze:
+	mov rcx, 0xc0ffebabe
+	cli
+	hlt
+	jmp .freeze
+
+
+spinlock:
+dw 0
+
+stack_top:
+times 256 db 0
+stack_bottom:
+dq 0
+
+protected_mode_gdt:
+	dq 0x0000000000000000;NULL
+	db 0xff, 0xff, 0, 0, 0, 10011010b, 11001111b, 0;code segment, 32bit mode
+	db 0xff, 0xff, 0, 0, 0, 10010010b, 11001111b, 0;data segment, 32bit mode
+protected_mode_gdt_end:
+
+protected_mode_gdtr:
+	dw protected_mode_gdt_end-protected_mode_gdt-1
+	dd protected_mode_gdt
+
+
+long_mode_gdt:
+	dq 0x0000000000000000;NULL
+	db 0xff, 0xff, 0, 0, 0, 10011010b, 10101111b, 0;code segment, 64bit mode
+	db 0xff, 0xff, 0, 0, 0, 10010010b, 10101111b, 0;data segment, 64bit mode
+long_mode_gdt_end:
+
+long_mode_gdtr:
+	dw long_mode_gdt_end-long_mode_gdt-1
+	dd long_mode_gdt
+
+fake_idtr:
+	dq 0
+	dq 0
+
+cpu_count:
+	dq 0
+
+page_fill:
+times 4080-($-$$) db 0
+;last 16 bytes are overrided with specific data by the mp_init_bin routine
+
+cr3_copy:
+dq 0
+init_data:
+dq 0

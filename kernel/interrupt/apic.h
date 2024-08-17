@@ -84,4 +84,8 @@ void send_IPI_by_lapic_id(uint32_t lapic_id_target, uint8_t interrupt_vector);
 void send_IPI_INIT_by_lapic_id(uint32_t lapic_id_target);
 void send_IPI_INIT_to_all_excluding_self();
 void send_IPI_INIT_deassert();//send to all logical cores
+void send_startup_IPI(uint32_t lapic_id_target, uint8_t interrupt_vector);
+void send_startup_IPI_to_all_excluding_self(uint8_t interrupt_vector);
 bool is_IPI_sending_complete();
+
+void start_others_APs();
