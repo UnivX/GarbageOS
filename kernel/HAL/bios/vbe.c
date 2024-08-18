@@ -17,7 +17,7 @@ VbeFrameBuffer init_frame_buffer(){
 		bytes_count += PAGE_SIZE - (bytes_count%PAGE_SIZE);
 	//uint64_t pages_count = bytes_count/PAGE_SIZE + (bytes_count%PAGE_SIZE != 0);//round up
 
-	framebuffer.framebuffer_mapping = memory_map(framebuffer.paddr, bytes_count, PAGE_WRITABLE | PAGE_PRESENT | PAGE_CACHE_DISABLE);
+	framebuffer.framebuffer_mapping = memory_map(framebuffer.paddr, bytes_count, PAGE_WRITABLE | PAGE_PRESENT | PAGE_WRITE_COMBINING);
 	framebuffer.vaddr = get_vmem_addr(framebuffer.framebuffer_mapping);
 	if(framebuffer.vaddr == NULL)
 		return invalid_buffer;

@@ -11,7 +11,14 @@ inline void memory_fence(){
  *PML4[512] -> PDPT[512] -> PDT[512] -> PT[512]
  */
 
-
+void enable_PAT(){
+	uint64_t value = PAT_VALUE;
+	uint32_t low = value;
+	uint32_t high = value >> 32;
+	set_cpu_msr(IA32_PAT_MSR, low, high);
+	//flush TLB
+	set_active_paging_structure(get_active_paging_structure());
+}
 
 void* get_active_paging_structure(){
 	uint64_t cr3;

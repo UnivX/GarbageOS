@@ -65,7 +65,6 @@ typedef struct LocalAPIC{
 	ICS_local_APIC* ics_lapic;
 	ICS_local_APIC_NMI* ics_lapic_nmi;//may be null
 	bool enabled;
-	soft_spinlock lock;
 } LocalAPIC;
 
 typedef struct LAPICSubsystemData{

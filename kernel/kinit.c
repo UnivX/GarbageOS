@@ -71,6 +71,7 @@ void setup_virtual_memory(){
 	//remove old bootloader paging_structure;
 	set_active_paging_structure(new_paging_struct);
 	delete_paging_structure(old_paging_struct);
+	enable_PAT();
 }
 
 //called before the kmain by the early_kmain

@@ -204,10 +204,14 @@ uint64_t kmain(){
 	
 	printf("sending interrupt %u64 to all cpus \n", 0x51);
 	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_INCLUDING_SELF, 0x51);
+	while(!is_IPI_sending_complete()) ;
+
+	//PIT_wait_ms(&pit, 100);
 
 	printf("freezing other cpus\n");
 	install_interrupt_handler(0xf0, freeze_interrupt);
 	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_EXCLUDING_SELF, 0xf0);
+	while(!is_IPI_sending_complete()) ;
 	PIT_wait_ms(&pit, 100);
 
 	uint64_t ms = get_ms_from_tick_count(&pit, get_PIT_tick_count(&pit));

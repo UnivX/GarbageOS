@@ -20,7 +20,7 @@ typedef struct KioState{
 	Color background_color, font_color;
 	PSFFont font;
 	Pixel *buffer;
-	hard_spinlock lock;
+	spinlock lock;
 } KioState;
 
 //the display interface needs to be initialized

@@ -9,7 +9,6 @@
 //TODO: check if it works
 
 static LAPICSubsystemData lapic_gdata = {NULL, 0, NULL, NULL};
-static soft_spinlock gdata_lock;
 
 //check if it's the deiscrete apic chip(82489DX)
 static bool is_lapic_discrete_82489DX();
@@ -112,7 +111,6 @@ bool init_apic_subsystem(){
 	if(madt == NULL)
 		return false;
 
-	init_soft_spinlock(&gdata_lock);
 	uint64_t lapic_count = count_number_of_local_apic(madt);
 	lapic_gdata.lapic_base_address = get_lapic_base_address_from_madt(madt);
 	lapic_gdata.lapic_array_size = lapic_count;

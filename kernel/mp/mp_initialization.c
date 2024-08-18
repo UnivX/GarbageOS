@@ -13,13 +13,13 @@ static struct MPGlobalData{
 	uint64_t initialized_APs;
 	MPInitializationData init_data;
 	APKernelData* APs_kernel_data;
-	soft_spinlock lock;
+	spinlock lock;
 } mp_gdata;
 
 void AP_entry_point(void* loaded_stack){
 	VMemHandle stack_vmem = NULL;
 
-	acquire_soft_spinlock(&mp_gdata.lock);
+	acquire_spinlock(&mp_gdata.lock);
 	mp_gdata.initialized_APs++;
 	for(uint64_t i = 0; i < mp_gdata.init_data.APs_count; i++){
 		VMemHandle vmem = mp_gdata.APs_kernel_data[i].kernel_stack;
@@ -28,7 +28,11 @@ void AP_entry_point(void* loaded_stack){
 			break;
 		}
 	}
-	release_soft_spinlock(&mp_gdata.lock);
+	release_spinlock(&mp_gdata.lock);
+
+	//set the real paging structure
+	set_active_paging_structure((volatile void*)get_kernel_VMM_paging_structure());
+	enable_PAT();
 
 	KASSERT(stack_vmem != NULL);
 
@@ -47,7 +51,7 @@ void AP_entry_point(void* loaded_stack){
 }
 
 void init_APs(PIT* pit){
-	init_soft_spinlock(&mp_gdata.lock);
+	init_spinlock(&mp_gdata.lock);
 	mp_gdata.initialized_APs = 0;
 	mp_gdata.init_data.APs_count = get_number_of_usable_logical_cores()-1;
 	if(mp_gdata.init_data.APs_count == 0)

@@ -2,19 +2,29 @@
 #include <stdatomic.h>
 #include "../hal.h"
 
-//hard spinlocks disable interrupts
-typedef struct hard_spinlock{
-	atomic_flag flag;
-	InterruptState istate;
-} hard_spinlock;
+typedef atomic_flag spinlock;
 
-void init_hard_spinlock(hard_spinlock* s);
-void acquire_hard_spinlock(hard_spinlock* s);
-void release_hard_spinlock(hard_spinlock* s);
+/*
+#define ACQUIRE_SPINLOCK_HARD(s) \
+	InterruptState spinlock_istate; \
+	spinlock_istate = disable_and_save_interrupts(); \
+	acquire_spinlock(s)
 
-typedef atomic_flag soft_spinlock;
+#define RELEASE_SPINLOCK_HARD(s) \
+	release_spinlock(s); \
+	restore_interrupt_state(spinlock_istate)
+*/
 
-void init_soft_spinlock(soft_spinlock* s);
-void acquire_soft_spinlock(soft_spinlock* s);
-void release_soft_spinlock(soft_spinlock* s);
+#define ACQUIRE_SPINLOCK_HARD(s) \
+	InterruptState spinlock_istate; \
+	acquire_spinlock_hard(s, &spinlock_istate)
 
+#define RELEASE_SPINLOCK_HARD(s) \
+	release_spinlock_hard(s, &spinlock_istate); \
+
+void init_spinlock(spinlock* s);
+void acquire_spinlock(spinlock* s);
+void release_spinlock(spinlock* s);
+
+void acquire_spinlock_hard(spinlock* s, InterruptState* istate);
+void release_spinlock_hard(spinlock* s, InterruptState* istate);

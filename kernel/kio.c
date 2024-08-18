@@ -9,7 +9,7 @@ static void unsync_opt_flush();
 static void unsync_flush();
 
 void init_kio(const DisplayInterface display, const PSFFont font, const Color background_color, const Color font_color){
-	init_hard_spinlock(&kio_state.lock);
+	init_spinlock(&kio_state.lock);
 	is_initialized = true;
 	kio_state.buffer = kmalloc(display.info.height*display.info.width*sizeof(Pixel));
 	kio_state.display = display;
@@ -32,13 +32,13 @@ bool is_kio_initialized(){
 }
 
 void print(const char* str){
-	acquire_hard_spinlock(&kio_state.lock);
+	ACQUIRE_SPINLOCK_HARD(&kio_state.lock);
 	while(*str != 0){
 		unsync_putchar(*str, false);
 		++str;
 	}
 	unsync_opt_flush();
-	release_hard_spinlock(&kio_state.lock);
+	RELEASE_SPINLOCK_HARD(&kio_state.lock);
 	return;
 }
 
@@ -85,16 +85,16 @@ void unsync_flush(){
 }
 
 void unsync_opt_flush(){
-	const uint64_t max_chars = 128;
+	const uint64_t max_chars = 32;
 	if(circular_buffer_written_bytes(&kio_state.char_buffer) >= max_chars){
 		unsync_flush();
 	}
 }
 
 void kio_flush(){
-	acquire_hard_spinlock(&kio_state.lock);
+	ACQUIRE_SPINLOCK_HARD(&kio_state.lock);
 	unsync_flush();
-	release_hard_spinlock(&kio_state.lock);
+	RELEASE_SPINLOCK_HARD(&kio_state.lock);
 }
 
 void unsync_putchar(char c, bool flush){
@@ -107,9 +107,9 @@ void unsync_putchar(char c, bool flush){
 }
 
 void putchar(char c, bool flush){
-	acquire_hard_spinlock(&kio_state.lock);
+	ACQUIRE_SPINLOCK_HARD(&kio_state.lock);
 	unsync_putchar(c, flush);
-	release_hard_spinlock(&kio_state.lock);
+	RELEASE_SPINLOCK_HARD(&kio_state.lock);
 }
 
 void finalize_kio(){
@@ -141,7 +141,7 @@ void print_uint64_hex(uint64_t n){
 	uint8_t buffer[sizeof(n)*2];
 	fill_digit_buffer(n, 16, buffer, sizeof(n)*2);
 
-	acquire_hard_spinlock(&kio_state.lock);
+	ACQUIRE_SPINLOCK_HARD(&kio_state.lock);
 	unsync_putchar('0', false);
 	unsync_putchar('x', false);
 	for(int i = sizeof(n)*2-1; i >= 0; i--){
@@ -153,7 +153,7 @@ void print_uint64_hex(uint64_t n){
 		}
 	}
 	unsync_opt_flush();
-	release_hard_spinlock(&kio_state.lock);
+	RELEASE_SPINLOCK_HARD(&kio_state.lock);
 }
 
 
@@ -162,7 +162,7 @@ void print_uint64_dec(uint64_t n){
 	uint8_t buffer[buffer_size];
 	uint64_t written_digits_count = fill_digit_buffer(n, 10, buffer, buffer_size);
 
-	acquire_hard_spinlock(&kio_state.lock);
+	ACQUIRE_SPINLOCK_HARD(&kio_state.lock);
 	if(n == 0)
 		unsync_putchar('0', false);
 
@@ -172,7 +172,7 @@ void print_uint64_dec(uint64_t n){
 	}
 
 	unsync_opt_flush();
-	release_hard_spinlock(&kio_state.lock);
+	RELEASE_SPINLOCK_HARD(&kio_state.lock);
 }
 
 void unsync_print_uint64_hex(uint64_t n){
@@ -227,7 +227,7 @@ void printf(const char* format, ...){
 	va_list ptr;
 	va_start(ptr, format);
 
-	acquire_hard_spinlock(&kio_state.lock);
+	ACQUIRE_SPINLOCK_HARD(&kio_state.lock);
 
 	while(*format != 0){
 		if(token_found){
@@ -259,7 +259,7 @@ void printf(const char* format, ...){
 		format++;
 	}
 	unsync_opt_flush();
-	release_hard_spinlock(&kio_state.lock);
+	RELEASE_SPINLOCK_HARD(&kio_state.lock);
 
 	va_end(ptr);
 	return;

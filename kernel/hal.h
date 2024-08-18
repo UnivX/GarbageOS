@@ -25,10 +25,12 @@
 
 /*--------------x86-64 + BIOS default defines--------------*/
 /*paging common flags*/ 
+#define PAGE_PAT_BIT (1 << 7)
 #define PAGE_PRESENT 1
 #define PAGE_WRITABLE 2
 #define PAGE_CACHE_DISABLE (1 << 4)
 #define PAGE_WRITE_THROUGH (1 << 3)
+#define PAGE_WRITE_COMBINING PAGE_PAT_BIT
 #define REGISTER_SIZE_BYTES 8
 #include "HAL/x86-64/x64-memory.h"
 
@@ -109,6 +111,7 @@ void invalidate_paging_mapping(volatile void* paging_structure, volatile void* v
 //if there is no mapping return INVALID_PADDR
 PagingMapState get_physical_address(volatile void* paging_structure, volatile void* vaddr);
 
+void enable_PAT();
 void set_active_paging_structure(volatile void* paging_structure);
 void* get_active_paging_structure();
 
