@@ -346,6 +346,12 @@ void send_IPI_INIT_deassert(){
 	wait_and_write_interrupt_command_register(ICR);
 }
 
+void send_IPI_INIT_deassert_by_lapic_id(uint32_t apic_id){
+	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	uint64_t ICR = make_interrupt_command(apic_id, APIC_DESTSH_NO_SH, 1, 0, 0, APIC_DEL_MODE_INIT, 0);
+	wait_and_write_interrupt_command_register(ICR);
+}
+
 void send_startup_IPI(uint32_t lapic_id_target, uint8_t interrupt_vector){
 	KASSERT(lapic_gdata.register_space_mapping != NULL);
 	uint64_t ICR = make_interrupt_command(lapic_id_target, APIC_DESTSH_NO_SH, 0, 1, 0, APIC_DEL_MODE_START_UP, interrupt_vector);
@@ -376,8 +382,13 @@ bool is_lapic_discrete_82489DX(){
 	return version < 0x10;
 }
 
-void start_others_APs(){
-	
+int64_t get_lapic_id_array(uint32_t* buffer, uint64_t buffer_size){
+	if(buffer_size < lapic_gdata.lapic_array_size)
+		return -1;
+	for(uint64_t i = 0; i < lapic_gdata.lapic_array_size; i++){
+		buffer[i] = lapic_gdata.lapic_array[i].APIC_ID;
+	}
+	return lapic_gdata.lapic_array_size;
 }
 
 void print_lapic_state(){

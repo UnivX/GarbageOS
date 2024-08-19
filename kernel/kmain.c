@@ -37,13 +37,12 @@
 PIT pit;
 
 void general_protection_fault(InterruptInfo info){
-	print("[GENERAL PROTECTION FAULT] error: ");
-	print_uint64_hex(info.error);
-	print("\n");
+	printf("[GENERAL PROTECTION FAULT] error: %h64\n", info.error);
 	kpanic(UNRECOVERABLE_GPF);
 }
 
 void interrupt_print(InterruptInfo info){
+	KASSERT(info.interrupt_number > 32);
 	printf("[INT %u64] error: %h64\n", (uint64_t)info.interrupt_number, (uint64_t)info.error);
 }
 
@@ -193,12 +192,13 @@ uint64_t kmain(){
 	printf( madt_has_pic(get_MADT()) ? "the PC has PIC\n" : "the PC doesnt have PIC\n");
 
 
-	print_lapic_state();
-	print_ioapic_states();
+	//print_lapic_state();
+	//print_ioapic_states();
 
 	printf( is_kheap_corrupted() ? "KERNEL HEAP CORRUPTED\n" : "KERNEL HEAP OK\n" );
 	
 	printf("starting other CPUs\n");
+	PIT_wait_ms(&pit, 2000);
 	init_APs(&pit);
 	PIT_wait_ms(&pit, 100);
 	
@@ -206,7 +206,7 @@ uint64_t kmain(){
 	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_INCLUDING_SELF, 0x51);
 	while(!is_IPI_sending_complete()) ;
 
-	//PIT_wait_ms(&pit, 100);
+	PIT_wait_ms(&pit, 2000);
 
 	printf("freezing other cpus\n");
 	install_interrupt_handler(0xf0, freeze_interrupt);
@@ -214,6 +214,7 @@ uint64_t kmain(){
 	while(!is_IPI_sending_complete()) ;
 	PIT_wait_ms(&pit, 100);
 
+	PIT_wait_ms(&pit, 2000);
 	uint64_t ms = get_ms_from_tick_count(&pit, get_PIT_tick_count(&pit));
 	printf("seconds passed from pit init: %u64.%u64\n\n\n", ms/1000, ms%1000);
 

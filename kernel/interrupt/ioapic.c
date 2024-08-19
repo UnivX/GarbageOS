@@ -155,7 +155,7 @@ void setIOAPICInterruptRedirection(IOAPICInterruptRedirection redirection, uint6
 		ioredirection_entry |= APIC_DEL_MODE_LOWEST_PRIORITY << 8;
 	}else{
 		//check that the apic id is only 4 bit wide as specified in the ioapic specification
-		KASSERT((redirection.apic_id_to_redirect & 0x0f) == redirection.vector);
+		KASSERT((redirection.apic_id_to_redirect & 0x0f) == redirection.apic_id_to_redirect);
 		//set delivery mode and apic id
 		ioredirection_entry |= APIC_DEL_MODE_FIXED << 8;
 		ioredirection_entry |= (uint64_t)(redirection.apic_id_to_redirect) << 56;//set destination field

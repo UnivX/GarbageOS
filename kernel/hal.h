@@ -102,6 +102,7 @@ void* acpi_RSDP();
 
 //fatal error
 void kpanic(volatile uint64_t error_code);
+void kpanic_with_msg(volatile uint64_t error_code, const char* msg);
 
 //map a virtual address to a physical address
 void paging_map(volatile void* paging_structure, volatile void* vaddr, volatile void* paddr, uint16_t flags);

@@ -121,6 +121,7 @@ void load_CPU_state(CPUID cpuid){
 	uint32_t local_cpu_id = cpuid;
 	KASSERT(local_cpu_id < global_cpu_state.number_of_logical_cores);
 	volatile uint16_t tss_selector = get_tss_selector(local_cpu_id);
+	KASSERT(tss_selector < global_cpu_state.gdt_entry_count*0x10);
 
 	load_gdt(global_cpu_state.gdt, global_cpu_state.gdt_entry_count, (GDTR*)&global_cpu_state.gdtr);
 

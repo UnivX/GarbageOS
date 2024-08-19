@@ -23,19 +23,25 @@ void init_kernel_data(){
 CPUID register_local_kernel_data_cpu(){
 	ACQUIRE_SPINLOCK_HARD(&kernel_data.lock);
 	CPUID cpuid = kernel_data.cpuid_to_allocate;
-		kernel_data.cpuid_to_allocate++;
+	kernel_data.cpuid_to_allocate++;
 	
 	//if it's the first cpu
 	if(kernel_data.local_data_list == NULL){
 		kernel_data.local_data_list = kmalloc(sizeof(LocalKernelDataList));
 		kernel_data.local_data_list->cpu_id = cpuid;
+		kernel_data.local_data_list->next = NULL;
+		KASSERT(kernel_data.local_data_list != NULL);
 	}else{
 		LocalKernelDataList* itr = kernel_data.local_data_list;
 		while(itr->next != NULL)
 			itr = itr->next;
-
+		KASSERT(itr != NULL);
+		if(cpuid != 0)
 		itr->next = kmalloc(sizeof(LocalKernelDataList));
+		//freeze_cpu();
+		KASSERT(itr->next != NULL);
 		itr->next->cpu_id = cpuid;
+		itr->next->next = NULL;
 	}
 	RELEASE_SPINLOCK_HARD(&kernel_data.lock);
 	return cpuid;

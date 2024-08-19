@@ -7,7 +7,7 @@
 #include "../util/sync_types.h"
 #include "../kio.h"
 #include "../kernel_data.h"
-#include "../interrupt/interrupts.h""
+#include "../interrupt/interrupts.h"
 
 static struct MPGlobalData{
 	uint64_t initialized_APs;
@@ -33,16 +33,20 @@ void AP_entry_point(void* loaded_stack){
 	//set the real paging structure
 	set_active_paging_structure((volatile void*)get_kernel_VMM_paging_structure());
 	enable_PAT();
-
-	KASSERT(stack_vmem != NULL);
+	//init_cpu(0);
+	//freeze_cpu();
 
 	CPUID cpuid = register_local_kernel_data_cpu();
 	init_cpu(cpuid);
+
+	KASSERT(stack_vmem != NULL);
+
 	init_local_interrupt_controllers();
 
 	LocalKernelData local_data = {stack_vmem, get_logical_core_lapic_id()};
 	set_local_kernel_data(cpuid, local_data);
 	printf("cpu %u64 started, loaded stack : %h64\n", (uint64_t)cpuid, (uint64_t)loaded_stack);
+	kio_flush();
 	enable_interrupts();
 
 	while(1){
@@ -69,10 +73,34 @@ void init_APs(PIT* pit){
 	volatile void* startup_frame = create_mp_init_routine_in_RAM(get_kernel_VMM_paging_structure(), (void*)&mp_gdata.init_data);
 	uint8_t vector_addr = ((uint64_t)startup_frame) >> 12;
 
+	//get the lapic ids
+	uint64_t number_of_logical_cores = get_number_of_usable_logical_cores();
+	uint32_t* lapic_ids = kmalloc(number_of_logical_cores*sizeof(uint32_t));
+	uint64_t array_result = get_lapic_id_array(lapic_ids, number_of_logical_cores);
+	if(array_result < 0 || array_result != number_of_logical_cores)
+		kpanic(GENERIC_ERROR);
+
+	send_IPI_INIT_to_all_excluding_self();
+	PIT_wait_ms(pit, 10);
+	uint32_t BSP_lapic_id = get_logical_core_lapic_id();
+	for(uint64_t i = 0; i < number_of_logical_cores; i++){
+		if(lapic_ids[i] == BSP_lapic_id)
+			continue;
+		printf("starting %u64\n", (uint64_t)lapic_ids[i]);
+		kio_flush();
+		send_startup_IPI(lapic_ids[i], vector_addr);
+		PIT_wait_us(pit, 200);
+		send_startup_IPI(lapic_ids[i], vector_addr);
+		PIT_wait_us(pit, 200);
+	}
+	PIT_wait_ms(pit, 1000);
+
+	/*
 	send_IPI_INIT_to_all_excluding_self();
 	PIT_wait_ms(pit, 10);
 	send_startup_IPI_to_all_excluding_self(vector_addr);
 	PIT_wait_us(pit, 200);
 	send_startup_IPI_to_all_excluding_self(vector_addr);
 	PIT_wait_us(pit, 200);
+	*/
 }

@@ -1,6 +1,7 @@
 #include "pit.h"
 #include "../interrupt/interrupts.h"
 #include "../interrupt/ioapic.h"
+#include "../interrupt/apic.h"
 
 static void PIT_interrupt_handler(InterruptInfo info);
 
@@ -20,9 +21,11 @@ void enable_PIT_irq(PIT* pit){
 	int_redi.mask = false;
 
 	//send interrupt to lowest priority processor
-	int_redi.apic_id_to_redirect = 0;
-	int_redi.reidirect_to_lowest_priority = true;
+	//int_redi.apic_id_to_redirect = 0;
+	//int_redi.reidirect_to_lowest_priority = true;
 
+	int_redi.apic_id_to_redirect = get_logical_core_lapic_id();
+	int_redi.reidirect_to_lowest_priority = false;
 
 	//set polarity and trigger mode to the default values
 	//if the MADT specify the polarity and the trigger mode

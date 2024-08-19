@@ -62,7 +62,10 @@ typedef struct Vector2i{
 	int64_t x, y;
 } Vector2i;
 
-#define KASSERT(x) if(!(x)) kpanic(FAILED_ASSERT);
+#define S1(x) #x
+#define S2(x) S1(x)
+#define __LOCATION__ __FILE__ " : " S2(__LINE__) 
+#define KASSERT(x) if(!(x)) kpanic_with_msg(FAILED_ASSERT, ""__LOCATION__);
 
 //suppress compiler unused warning
 #define UNUSED(x) (void)(x) 
