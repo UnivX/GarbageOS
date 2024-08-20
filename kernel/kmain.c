@@ -162,7 +162,7 @@ uint64_t kmain(){
 	print(" MiB\n");
 
 	print("kernel paging memory overhead: ");
-	print_uint64_dec(get_paging_mem_overhead(get_active_paging_structure()) / MB);
+	print_uint64_dec(get_paging_mem_overhead((void*)get_kernel_VMM_paging_structure()) / MB);
 	print(" MiB\n");
 
 	print("kernel frame allocator overhead: ");

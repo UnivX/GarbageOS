@@ -1,4 +1,5 @@
 #include "gdt.h"
+#include "../../kdefs.h"
 extern void _gdt_flush(GDTR*);
 
 GDT make_gdt(uint64_t base, uint32_t limit, uint8_t flags, uint8_t access){

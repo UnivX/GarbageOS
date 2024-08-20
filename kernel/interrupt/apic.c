@@ -6,8 +6,6 @@
 #include "../kdefs.h"
 #include "../util/sync_types.h"
 
-//TODO: check if it works
-
 static LAPICSubsystemData lapic_gdata = {NULL, 0, NULL, NULL};
 
 //check if it's the deiscrete apic chip(82489DX)

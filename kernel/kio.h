@@ -34,7 +34,7 @@ void kio_flush();
 //%u64
 //%h64
 //%s
-void printf(const char* format, ...);//TODO: test
+void printf(const char* format, ...);
 void print_uint64_hex(uint64_t n);
 void print_uint64_dec(uint64_t n);
 void finalize_kio();

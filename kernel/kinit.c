@@ -14,7 +14,7 @@
 
 void setup_virtual_memory(){
 	//SETUP MEMORY
-	void* old_paging_struct = get_active_paging_structure();
+	void* old_paging_struct = get_bootloader_paging_structure();
 	
 	//create new paging_structure;
 	void* new_paging_struct = create_empty_kernel_paging_structure();

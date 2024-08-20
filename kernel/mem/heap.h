@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include "../hal.h"
 #include "../kdefs.h"
+#include "../util/sync_types.h"
 #include "vmm.h"
 
 #define HEAP_FREE_CHUNK 1
@@ -17,10 +18,7 @@
 #define HEAP_CHUNK_SPLIT_OVERHEAD sizeof(HeapChunkHeader) + sizeof(HeapChunkFooter)
 
 //TODO:
-//-malloc
-//-free
 //-make the size of the footer and header 32 bit and rework the initial big chunk in initialization
-//-let the heap grow when out of resources
 /*
  *
  * Heap struct:

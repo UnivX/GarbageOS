@@ -1,6 +1,12 @@
 #include "x64-memory.h"
 #include "../../hal.h"
 #include "../../mem/frame_allocator.h"
+#include "../../util/sync_types.h"
+
+typedef struct x64PagingStructure{
+	volatile void* paging_structure;
+	spinlock lock;
+} x64PagingStructure;
 
 inline void memory_fence(){
 	asm volatile("mfence" :::"memory");
@@ -17,22 +23,35 @@ void enable_PAT(){
 	uint32_t high = value >> 32;
 	set_cpu_msr(IA32_PAT_MSR, low, high);
 	//flush TLB
-	set_active_paging_structure(get_active_paging_structure());
-}
-
-void* get_active_paging_structure(){
 	uint64_t cr3;
-	asm("mov %%cr3, %0" : "=r"(cr3) : : "cc");
-	cr3 &= 0xfffffffffffff000;
-	return (void*)cr3;
+	asm volatile("mov %%cr3, %0" : "=r"(cr3) : : "cc");
+	asm volatile("mov %0, %%cr3" : : "r"(cr3) : "cc");
 }
 
-void set_active_paging_structure(volatile void* paging_structure){
+void set_active_paging_structure(volatile void* _paging_structure){
+	volatile x64PagingStructure* x64_paging_struct = (volatile x64PagingStructure*)_paging_structure;
+	volatile void* paging_structure = x64_paging_struct->paging_structure;
 	uint64_t cr3 = (uint64_t)paging_structure;
 	asm volatile("mov %0, %%cr3" : : "r"(cr3) : "cc");
 }
 
-uint64_t* get_page_table_entry(volatile void* paging_structure, volatile void* vaddr){
+void* get_bootloader_paging_structure(){
+	uint64_t cr3;
+	asm volatile("mov %%cr3, %0" : "=r"(cr3) : : "cc");
+	cr3 &= 0xfffffffffffff000;
+
+	x64PagingStructure* x64paging_structure = (x64PagingStructure*)alloc_frame();
+	init_spinlock(&x64paging_structure->lock);
+	x64paging_structure->paging_structure = (void*)cr3;
+	return (void*)x64paging_structure;
+}
+
+volatile void* get_raw_paging_structure(void* paging_structure){
+	x64PagingStructure* x64_paging_struct = (x64PagingStructure*)paging_structure;
+	return x64_paging_struct->paging_structure;
+}
+
+uint64_t* unsync_get_page_table_entry(volatile void* paging_structure, volatile void* vaddr){
 	uint64_t vaddr_i = (uint64_t)vaddr;
 
 	//9 bits each
@@ -71,8 +90,10 @@ static inline void invalidate_TLB(volatile void* vaddr){
 	asm("invlpg (%0)" : : "r"(vaddr));
 }
 
-void paging_map(volatile void* paging_structure, volatile void* vaddr, volatile void* paddr, uint16_t flags){
-	uint64_t* table_entry = get_page_table_entry(paging_structure, vaddr);
+void paging_map(volatile void* _paging_structure, volatile void* vaddr, volatile void* paddr, uint16_t flags){
+	volatile x64PagingStructure* x64_paging_struct = (volatile x64PagingStructure*)_paging_structure;
+	//ACQUIRE_SPINLOCK_HARD(&x64_paging_struct->lock);
+	uint64_t* table_entry = unsync_get_page_table_entry(x64_paging_struct->paging_structure, vaddr);
 
 	flags |= PAGE_PRESENT;
 	flags &= 0xfff;
@@ -81,18 +102,20 @@ void paging_map(volatile void* paging_structure, volatile void* vaddr, volatile 
 	paddr_i &= 0x0000fffffffff000;
 
 	*table_entry = paddr_i | flags;
+	//RELEASE_SPINLOCK_HARD(&x64_paging_struct->lock);
 	invalidate_TLB(vaddr);
 }
 
-void invalidate_paging_mapping(volatile void* paging_structure, volatile void* vaddr){
-	uint64_t* table_entry = get_page_table_entry(paging_structure, vaddr);
+void invalidate_paging_mapping(volatile void* _paging_structure, volatile void* vaddr){
+	volatile x64PagingStructure* x64_paging_struct = (volatile x64PagingStructure*)_paging_structure;
+	uint64_t* table_entry = unsync_get_page_table_entry(x64_paging_struct->paging_structure, vaddr);
 	uint64_t new_value = *table_entry;
 	new_value &= ~(uint64_t)(PAGE_PRESENT);//disable PAGE_PRESENT bit
 	*table_entry = new_value;
 	invalidate_TLB(vaddr);
 }
 
-PagingMapState get_physical_address(volatile void* paging_structure, volatile void* vaddr){
+PagingMapState get_physical_address(volatile void* _paging_structure, volatile void* vaddr){
 	/* NOTE:
 	 * because the retrive of the physical address doesn't needs
 	 * to allocate eventualy needed frames for the paging structure
@@ -108,19 +131,29 @@ PagingMapState get_physical_address(volatile void* paging_structure, volatile vo
 	uint16_t PDT_index = (vaddr_i >> 21) & 0x1ff;
 	uint16_t PT_index = (vaddr_i >> 12) & 0x1ff;
 
-	uint64_t* PML4 = (uint64_t*)paging_structure;
-	if((PML4[PML4_index] & PAGE_PRESENT)== 0)
+	volatile x64PagingStructure* x64_paging_struct = (volatile x64PagingStructure*)_paging_structure;
+
+
+	//ACQUIRE_SPINLOCK_HARD(&x64_paging_struct->lock);
+	uint64_t* PML4 = (uint64_t*)x64_paging_struct->paging_structure;
+	if((PML4[PML4_index] & PAGE_PRESENT)== 0){
+		//RELEASE_SPINLOCK_HARD(&x64_paging_struct->lock);
 		return mmap_not_present;
+	}
 
 	uint64_t* PDPT = (uint64_t*)(PML4[PML4_index]&0x0000fffffffff000);
 
-	if((PDPT[PDPT_index] & PAGE_PRESENT) == 0)
+	if((PDPT[PDPT_index] & PAGE_PRESENT) == 0){
+		//RELEASE_SPINLOCK_HARD(&x64_paging_struct->lock);
 		return mmap_not_present;
+	}
 
 	uint64_t* PDT = (uint64_t*)(PDPT[PDPT_index]&0x0000fffffffff000);
 
-	if((PDT[PDT_index] & PAGE_PRESENT) == 0)
+	if((PDT[PDT_index] & PAGE_PRESENT) == 0){
+		//RELEASE_SPINLOCK_HARD(&x64_paging_struct->lock);
 		return mmap_not_present;
+	}
 
 	uint64_t* PT = (uint64_t*)(PDT[PDT_index]&0x0000fffffffff000);
 
@@ -135,8 +168,11 @@ PagingMapState get_physical_address(volatile void* paging_structure, volatile vo
 	if((flags & PAGE_PRESENT) == 0){
 		mmap_not_present.paddr = (void*)paddr_i;
 		mmap_not_present.flags = flags;
+		//RELEASE_SPINLOCK_HARD(&x64_paging_struct->lock);
 		return mmap_not_present;
 	}
+
+	//RELEASE_SPINLOCK_HARD(&x64_paging_struct->lock);
 	PagingMapState result = {(void*)paddr_i, flags, true};
 	return result;
 }
@@ -151,7 +187,10 @@ void* create_empty_kernel_paging_structure(){
 		paging_structure[i] =  new_frame | PAGE_PRESENT | PAGE_WRITABLE;
 	}
 
-	return paging_structure;
+	x64PagingStructure* x64paging_structure = (x64PagingStructure*)alloc_frame();
+	init_spinlock(&x64paging_structure->lock);
+	x64paging_structure->paging_structure = paging_structure;
+	return (void*)x64paging_structure;
 }
 
 void delete_map_table(uint64_t* map_table, uint8_t page_level){
@@ -170,20 +209,31 @@ void delete_map_table(uint64_t* map_table, uint8_t page_level){
 	dealloc_frame((void*)map_table);
 }
 
-void delete_paging_structure(void* paging_structure){
-	delete_map_table((uint64_t*)paging_structure, 4);
+void delete_paging_structure(void* _paging_structure){
+	return;
+	x64PagingStructure* x64_paging_struct = (x64PagingStructure*)_paging_structure;
+	delete_map_table((uint64_t*)x64_paging_struct->paging_structure, 4);
+	dealloc_frame((void*)x64_paging_struct);
 }
 
-void copy_paging_structure_mapping_no_page_invalidation(void* src_paging_structure, void* dst_paging_structure, void* start_vaddr, uint64_t size_bytes, uint16_t new_flags){
+void copy_paging_structure_mapping_no_page_invalidation(void* _src_paging_structure, void* _dst_paging_structure, void* start_vaddr, uint64_t size_bytes, uint16_t new_flags){
 	void* vaddr = start_vaddr;
+	x64PagingStructure* x64_src_paging_struct = (x64PagingStructure*)_src_paging_structure;
+	x64PagingStructure* x64_dst_paging_struct = (x64PagingStructure*)_dst_paging_structure;
 	for(uint64_t i = 0; i < size_bytes; i += PAGE_SIZE){
-		uint64_t* src_entry = get_page_table_entry(src_paging_structure, vaddr);
-		uint64_t* dst_entry = get_page_table_entry(dst_paging_structure, vaddr);
+		//ACQUIRE_SPINLOCK_HARD(&x64_src_paging_struct->lock);
+		//acquire_spinlock(&x64_dst_paging_struct->lock);
+
+		uint64_t* src_entry = unsync_get_page_table_entry(x64_src_paging_struct->paging_structure, vaddr);
+		uint64_t* dst_entry = unsync_get_page_table_entry(x64_dst_paging_struct->paging_structure, vaddr);
 		if(new_flags == 0)
 			*dst_entry = *src_entry;
 		else
 			*dst_entry = (*src_entry & 0x0000fffffffff000) | new_flags;
 		vaddr += PAGE_SIZE;
+
+		//release_spinlock(&x64_dst_paging_struct->lock);
+		//RELEASE_SPINLOCK_HARD(&x64_src_paging_struct->lock);
 	}
 }
 
@@ -204,9 +254,12 @@ void count_map_tables_frames(uint64_t* map_table, uint8_t page_level, uint64_t* 
 	(*counter)++;
 }
 
-uint64_t get_paging_mem_overhead(void* paging_structure){
+uint64_t get_paging_mem_overhead(void* _paging_structure){
+	x64PagingStructure* x64_paging_struct = (x64PagingStructure*)_paging_structure;
 	uint64_t counter = 0;
-	count_map_tables_frames((void*)paging_structure, 4, &counter);
+	//ACQUIRE_SPINLOCK_HARD(&x64_paging_struct->lock);
+	count_map_tables_frames((void*)x64_paging_struct->paging_structure, 4, &counter);
+	//RELEASE_SPINLOCK_HARD(&x64_paging_struct->lock);
 	return counter*PAGE_SIZE;
 }
 

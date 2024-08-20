@@ -1,6 +1,7 @@
 #pragma once
 #include <stdbool.h>
 #include "../hal.h"
+#include "../util/sync_types.h"
 
 /* a stack that requires a contiguous physical ram space
  * used to take care of freed frames
@@ -25,6 +26,7 @@ struct FrameAllocatorState{
 	FrameStack frame_stack;
 	size_t cached_memory_range_index;//mem range used by the allocate
 	uint64_t free_frames;
+	spinlock lock;
 };
 
 

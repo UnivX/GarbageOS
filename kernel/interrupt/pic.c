@@ -1,8 +1,11 @@
 #include "pic.h"
+#include "../util/sync_types.h"
 
-//TODO: protect PIC from race conditions
+
+spinlock pic_lock;
 
 void pic_ack_interrupt(uint64_t interrupt_number, bool spurious){
+	ACQUIRE_SPINLOCK_HARD(&pic_lock);
 	if(spurious){
 		//if it's the slave spurious interrupt
 		//then send the ack to the master
@@ -15,9 +18,11 @@ void pic_ack_interrupt(uint64_t interrupt_number, bool spurious){
 
 		outb(MASTER_COMMAND_PORT, PIC_EOI);
 	}
+	RELEASE_SPINLOCK_HARD(&pic_lock);
 }
 
 void init_pic(){
+	init_spinlock(&pic_lock);
 	//first initialization command
 	//ICW1_ICW4 tells the pic that we will send an ICW4 command
 	outb(MASTER_COMMAND_PORT, ICW1_INIT | ICW1_ICW4);
@@ -59,8 +64,10 @@ void set_pic_irq_mask(uint8_t irq_line){
         port = SLAVE_DATA_PORT;
         irq_line -= 8;
     }
+	ACQUIRE_SPINLOCK_HARD(&pic_lock);
     uint8_t value = inb(port) | (1 << irq_line);
     outb(port, value);
+	RELEASE_SPINLOCK_HARD(&pic_lock);
 }
 
 void clear_pic_irq_mask(uint8_t irq_line){
@@ -73,14 +80,19 @@ void clear_pic_irq_mask(uint8_t irq_line){
         port = SLAVE_DATA_PORT;
         irq_line -= 8;
     }
+	ACQUIRE_SPINLOCK_HARD(&pic_lock);
     uint8_t value = inb(port) & ~(1 << irq_line);
     outb(port, value);
+	RELEASE_SPINLOCK_HARD(&pic_lock);
 }
 
 uint16_t get_pic_isr(){
+	ACQUIRE_SPINLOCK_HARD(&pic_lock);
 	outb(MASTER_COMMAND_PORT, PIC_READ_ISR);
     outb(SLAVE_COMMAND_PORT, PIC_READ_ISR);
-    return (inb(SLAVE_COMMAND_PORT) << 8) | inb(SLAVE_COMMAND_PORT);
+    uint16_t result = (inb(SLAVE_COMMAND_PORT) << 8) | inb(SLAVE_COMMAND_PORT);
+	RELEASE_SPINLOCK_HARD(&pic_lock);
+	return result;
 }
 
 bool is_pic_interrupt_spurious(uint8_t interrupt_number){
@@ -95,6 +107,8 @@ bool is_pic_interrupt_spurious(uint8_t interrupt_number){
 
 void disable_pic() {
 	//set masks as all 1
+	ACQUIRE_SPINLOCK_HARD(&pic_lock);
 	outb(SLAVE_DATA_PORT, 0xFF);
 	outb(MASTER_DATA_PORT, 0xFF);
+	RELEASE_SPINLOCK_HARD(&pic_lock);
 }

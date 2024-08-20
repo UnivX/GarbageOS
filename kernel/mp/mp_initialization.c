@@ -76,8 +76,8 @@ void init_APs(PIT* pit){
 	//get the lapic ids
 	uint64_t number_of_logical_cores = get_number_of_usable_logical_cores();
 	uint32_t* lapic_ids = kmalloc(number_of_logical_cores*sizeof(uint32_t));
-	uint64_t array_result = get_lapic_id_array(lapic_ids, number_of_logical_cores);
-	if(array_result < 0 || array_result != number_of_logical_cores)
+	int64_t array_result = get_lapic_id_array(lapic_ids, number_of_logical_cores);
+	if(array_result < 0 || (uint64_t)array_result != number_of_logical_cores)
 		kpanic(GENERIC_ERROR);
 
 	send_IPI_INIT_to_all_excluding_self();

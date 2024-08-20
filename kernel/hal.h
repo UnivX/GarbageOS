@@ -32,11 +32,14 @@
 #define PAGE_WRITE_THROUGH (1 << 3)
 #define PAGE_WRITE_COMBINING PAGE_PAT_BIT
 #define REGISTER_SIZE_BYTES 8
-#include "HAL/x86-64/x64-memory.h"
+
+
+#include "HAL/x86-64/memory_defs.h"
 
 /*
  * HAL structs:
  */
+typedef bool InterruptState;
 //identifier of the logical cpu, all the ids are contiguos
 typedef uint32_t CPUID;
 
@@ -90,7 +93,6 @@ typedef struct CPUFrequencies{
 	
 } CPUFrequencies;
 
-typedef bool InterruptState;
 
 
 /*
@@ -114,7 +116,6 @@ PagingMapState get_physical_address(volatile void* paging_structure, volatile vo
 
 void enable_PAT();
 void set_active_paging_structure(volatile void* paging_structure);
-void* get_active_paging_structure();
 
 void* create_empty_kernel_paging_structure();
 void delete_paging_structure(void* paging_structure);
@@ -191,3 +192,4 @@ void get_cpu_frequencies(CPUFrequencies* out);
 //return a frame used in the MP initialization of APs
 void* get_real_mode_startup_frame();
 void* get_real_mode_secondary_startup_frame();
+void* get_bootloader_paging_structure();

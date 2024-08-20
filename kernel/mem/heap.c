@@ -1,6 +1,5 @@
 #include "heap.h"
 
-//TODO: protect internal state from race conditions
 static Heap kheap;
 
 static uint64_t get_fixed_heap_chunk_size(HeapChunkHeader* header);
@@ -431,6 +430,7 @@ static void alloc_chunk(Heap* heap, HeapChunkHeader* header){
 }
 
 bool kheap_initialized = false;
+spinlock kheap_lock;
 
 bool is_kheap_initialzed(){
 	return kheap_initialized;
@@ -438,6 +438,7 @@ bool is_kheap_initialzed(){
 
 void kheap_init(){
 	//assert that the HEAP minimum alignment is a divisor of PAGE_SIZE
+	init_spinlock(&kheap_lock);
 	KASSERT(PAGE_SIZE % HEAP_ALIGNMENT == 0);
 	VMemHandle kheap_mem = allocate_kernel_virtual_memory(KERNEL_HEAP_SIZE, VM_TYPE_HEAP, KERNEL_HEAP_VMM_MAX_SIZE, KERNEL_HEAP_VMM_LOW_SECURITY_PADDING);
 	initialize_heap(&kheap, kheap_mem);
@@ -445,6 +446,7 @@ void kheap_init(){
 }
 
 void* kmalloc(size_t size){
+	ACQUIRE_SPINLOCK_HARD(&kheap_lock);
 	if(size < HEAP_CHUNK_MIN_SIZE)
 		size = HEAP_CHUNK_MIN_SIZE;
 
@@ -498,10 +500,13 @@ void* kmalloc(size_t size){
 		}
 	}
 	
-	return get_heap_chunk_user_data(found_chunk);
+	void* result =  get_heap_chunk_user_data(found_chunk);
+	RELEASE_SPINLOCK_HARD(&kheap_lock);
+	return result;
 }
 
 void kfree(void* ptr){
+	ACQUIRE_SPINLOCK_HARD(&kheap_lock);
 	HeapChunkHeader* header = get_heap_chunk_from_user_data(ptr);
 	//cannot be free or wilderness chunk
 	if(get_heap_chunk_flag(header, HEAP_FREE_CHUNK))
@@ -544,22 +549,31 @@ void kfree(void* ptr){
 	else //(prev != NULL && next != NULL)
 		merge_with_next_and_prev_chunk(&kheap, header);
 
+	RELEASE_SPINLOCK_HARD(&kheap_lock);
 	return;
 }
 
 uint64_t get_number_of_chunks_of_kheap(){
-	return kheap.number_of_chunks;
+	ACQUIRE_SPINLOCK_HARD(&kheap_lock);
+	uint64_t num = kheap.number_of_chunks;
+	RELEASE_SPINLOCK_HARD(&kheap_lock);
+	return num;
 }
 
 uint64_t get_kheap_total_size(){
-	return kheap.size;
+	ACQUIRE_SPINLOCK_HARD(&kheap_lock);
+	uint64_t size = kheap.size;
+	RELEASE_SPINLOCK_HARD(&kheap_lock);
+	return size;
 }
 
 void enable_kheap_growth(){
+	ACQUIRE_SPINLOCK_HARD(&kheap_lock);
 	enable_heap_growth(&kheap);
+	RELEASE_SPINLOCK_HARD(&kheap_lock);
 }
 
-bool is_kheap_corrupted(){
+bool unsync_is_kheap_corrupted(){
 	if(kheap.size % PAGE_SIZE != 0)
 		return true;
 	if((uint64_t)kheap.start % PAGE_SIZE != 0)
@@ -587,4 +601,10 @@ bool is_kheap_corrupted(){
 		return true;
 
 	return false;
+}
+bool is_kheap_corrupted(){
+	ACQUIRE_SPINLOCK_HARD(&kheap_lock);
+	bool result = unsync_is_kheap_corrupted();
+	RELEASE_SPINLOCK_HARD(&kheap_lock);
+	return result;
 }

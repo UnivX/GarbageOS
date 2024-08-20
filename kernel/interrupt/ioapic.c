@@ -3,8 +3,8 @@
 #include "../mem/heap.h"
 #include "../kio.h"
 
-//TODO: protect internal state from race conditions
 static IOAPICSubsystemData ioapic_gdata = {NULL, 0, NULL, 0};
+static spinlock ioapic_lock;
 static bool init_single_ioapic(IOAPIC *ioapic);
 
 static void write_32_ioapic_register(const IOAPIC *ioapic, const uint8_t offset, const uint32_t value);
@@ -68,6 +68,7 @@ bool init_ioapics(){
 	if(count_of_ioapic == 0)
 		return false;
 
+	init_spinlock(&ioapic_lock);
 	ioapic_gdata.ioapic_array = kmalloc(count_of_ioapic * sizeof(IOAPIC));
 	ioapic_gdata.ioapic_array_size = count_of_ioapic;
 
@@ -132,6 +133,7 @@ ISA_irq_fix get_isa_fix(uint64_t irq){
 }
 
 void setIOAPICInterruptRedirection(IOAPICInterruptRedirection redirection, uint64_t irq){
+	ACQUIRE_SPINLOCK_HARD(&ioapic_lock);
 	//we assume that the ISA irqs(0-15) will be mapped to the APIC's irqs 0-15
 	//but we may need to fix that assumption as stated in the ACPI specification
 	ISA_irq_fix isa_fix = get_isa_fix(irq);
@@ -186,6 +188,7 @@ void setIOAPICInterruptRedirection(IOAPICInterruptRedirection redirection, uint6
 	//caluculate the redirection table entry offset
 	uint64_t redtbl_offset = IOREDTBL_OFFSET_START + (interrupt_line*2);
 	write_64_ioapic_register(ioapic, redtbl_offset, ioredirection_entry);
+	RELEASE_SPINLOCK_HARD(&ioapic_lock);
 }
 
 void print_ioapic_states(){
@@ -193,7 +196,7 @@ void print_ioapic_states(){
 		print("NO IOAPIC DATA AVAILABLE\n");
 		return;
 	}
-
+	ACQUIRE_SPINLOCK_HARD(&ioapic_lock);
 	print("Number of ioapics: ");
 	print_uint64_dec(ioapic_gdata.ioapic_array_size);
 	print("\n");
@@ -223,6 +226,7 @@ void print_ioapic_states(){
 		print_uint64_dec(ioapic->maximum_redirection_entry);
 		print("\n");
 	}
+	RELEASE_SPINLOCK_HARD(&ioapic_lock);
 }
 
 void* get_ioapic_virtual_base_address(const IOAPIC *ioapic){

@@ -22,9 +22,17 @@ typedef atomic_flag spinlock;
 #define RELEASE_SPINLOCK_HARD(s) \
 	release_spinlock_hard(s, &spinlock_istate); \
 
-void init_spinlock(spinlock* s);
-void acquire_spinlock(spinlock* s);
-void release_spinlock(spinlock* s);
+#define SPINLOCK_HARD_TO_SOFT(s) \
+	restore_interrupt_state(spinlock_istate)
 
-void acquire_spinlock_hard(spinlock* s, InterruptState* istate);
-void release_spinlock_hard(spinlock* s, InterruptState* istate);
+#define SPINLOCK_HARD_FROM_SOFT(s) \
+	spinlock_istate = disable_and_save_interrupts
+
+#define SPINLOCK_HARD_ISTATE spinlock_istate
+
+void init_spinlock(volatile spinlock* s);
+void acquire_spinlock(volatile spinlock* s);
+void release_spinlock(volatile spinlock* s);
+
+void acquire_spinlock_hard(volatile spinlock* s, InterruptState* istate);
+void release_spinlock_hard(volatile spinlock* s, InterruptState* istate);

@@ -7,12 +7,14 @@ Virtual Memory Manager(VMM)
 #include <stdbool.h>
 #include "../kdefs.h"
 #include "../hal.h"
+#include "../util/sync_types.h"
 
 #define VIRTUAL_MEMORY_DESCRIPTOR_EARLY_ALLOCATION_SIZE 64
 #define COPY_FLAGS_ON_MMAP_COPY 0
 #define MEMORY_MAP_PADDING PAGE_SIZE*4
 
 //#define FREEZE_ON_PAGE_FAULT
+//TODO: TLB shotdown
 
 typedef enum VirtualMemoryType{
 	VM_TYPE_FREE,
@@ -35,20 +37,22 @@ typedef struct VirtualMemoryDescriptor{
 	bool is_from_heap;//is this from the heap allocator or from the bump allocator?
 } VirtualMemoryDescriptor;
 
+//TODO:
 bool is_kernel_virtual_memory(VirtualMemoryDescriptor descriptor);
 
 typedef struct VirtualMemoryManager{
 	VirtualMemoryDescriptor* vm_list_head;
 	void* kernel_paging_structure;
-	//future mutex
+	spinlock lock;
 } VirtualMemoryManager;
 
 typedef VirtualMemoryDescriptor* VMemHandle;
 
 void initialize_kernel_VMM(void* paging_structure);
-const void* get_kernel_VMM_paging_structure();
-VMemHandle identity_map(void* paddr, uint64_t size);
-void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle);
+const void* get_kernel_VMM_paging_structure();//sync
+//may return NULL on failure
+VMemHandle identity_map(void* paddr, uint64_t size);//sync
+void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle);//sync
 VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags);
 VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding);
 VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags);
