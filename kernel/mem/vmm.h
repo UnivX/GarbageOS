@@ -37,6 +37,15 @@ typedef struct VirtualMemoryDescriptor{
 	bool is_from_heap;//is this from the heap allocator or from the bump allocator?
 } VirtualMemoryDescriptor;
 
+typedef VirtualMemoryDescriptor* VMemHandle;
+
+typedef struct PageFaultInfo{
+	uint64_t page_error;
+	void* fault_address;
+	VMemHandle fault_vmem;
+	bool page_not_present;
+} PageFaultInfo;
+
 //TODO:
 bool is_kernel_virtual_memory(VirtualMemoryDescriptor descriptor);
 
@@ -46,7 +55,6 @@ typedef struct VirtualMemoryManager{
 	spinlock lock;
 } VirtualMemoryManager;
 
-typedef VirtualMemoryDescriptor* VMemHandle;
 
 void initialize_kernel_VMM(void* paging_structure);
 const void* get_kernel_VMM_paging_structure();//sync

@@ -93,6 +93,16 @@ void* kinit(){
 
 	//enable heap growth
 	enable_kheap_growth();
+
+
+	//init kio
+	DisplayInterface display = get_firmware_display();
+	display.init(display);
+	Color background_color = {0,0,0,255};
+	Color font_color = {0,255,0,255};
+	PSFFont font = get_default_PSF_font();
+	init_kio(display, font, background_color, font_color);
+
 	
 
 	//the new stack is still not setted up but the memory is fully working

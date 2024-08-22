@@ -114,17 +114,19 @@ void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle){
 	KASSERT(size%PAGE_SIZE == 0);
 	KASSERT((uint64_t)paddr%PAGE_SIZE == 0);
 	//TODO: check if we can lock and unlock the spinlock in the for loop
-	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
 
 	/*
+	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+
 	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)&handle;
 	if(paddr < get_no_padding_start_addr(desc))
 		kpanic(VMM_ERROR);
 	if(paddr + size > get_no_padding_start_addr(desc) + get_no_padding_size(desc))
 		kpanic(VMM_ERROR);
-		*/
 
 	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+	*/
+
 	for(void* to_map = paddr; to_map < paddr+size; to_map+=PAGE_SIZE){
 		paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 	}
@@ -194,9 +196,9 @@ VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure,
 		if(page_flags == COPY_FLAGS_ON_MMAP_COPY)
 			page_flags = 0;
 
-		release_spinlock_hard(&kernel_vmm.lock, &SPINLOCK_HARD_ISTATE);
+		RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
 		copy_paging_structure_mapping_no_page_invalidation(src_paging_structure, kernel_vmm.kernel_paging_structure, vaddr, size, page_flags);
-		acquire_spinlock_hard(&kernel_vmm.lock, &SPINLOCK_HARD_ISTATE);
+		REACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
 		result = (VMemHandle)cutted_descriptor;
 	}
 	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
@@ -298,77 +300,93 @@ bool deallocate_kernel_virtual_memory(VMemHandle handle){
 	return true;
 }
 
-bool try_expand_vmem_top(VMemHandle handle, uint64_t size){
-	bool result = false;
+bool _try_expand_vmem_top(VMemHandle handle, uint64_t size, bool use_spinlock){
 	
 	//adjust size
 	if(size % PAGE_SIZE != 0)
 		size += PAGE_SIZE - (size % PAGE_SIZE);
 
-	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+
+	//equivalent to 
+	//ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+	InterruptState lock_istate;
+	if(use_spinlock)
+		acquire_spinlock_hard(&kernel_vmm.lock, &lock_istate);
+
+
 	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+
+	bool is_type_invalid = desc->type != VM_TYPE_HEAP && desc->type != VM_TYPE_STACK && desc->type != VM_TYPE_GENERAL_USE;
+	bool is_too_small = size > desc->upper_padding;
+	bool not_expandable = is_type_invalid || is_too_small ;
 	
-	if(desc->type != VM_TYPE_HEAP && desc->type != VM_TYPE_STACK && desc->type != VM_TYPE_GENERAL_USE){
-		result = false;
-	}else if(size > desc->upper_padding){
-		result = false;
-	}else{
-		//map the memory to some free frames
-		void* vaddr = get_no_padding_start_addr(desc) + get_no_padding_size(desc);
-		void* desc_end_vaddr = (desc->start_vaddr + desc->size_bytes);
+	//map the memory to some free frames
+	void* vaddr = get_no_padding_start_addr(desc) + get_no_padding_size(desc);
+	void* desc_end_vaddr = (desc->start_vaddr + desc->size_bytes);
 		
+	
+	if(!not_expandable){
 		//set the new padding
 		desc->upper_padding -= size;
-	
-
-		release_spinlock_hard(&kernel_vmm.lock, &SPINLOCK_HARD_ISTATE);
+		//equivalent to
+		//RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+		if(use_spinlock)
+			release_spinlock_hard(&kernel_vmm.lock, &lock_istate);
 		for(uint64_t i = 0; i < size; i+=PAGE_SIZE){
 			KASSERT(vaddr < desc_end_vaddr);
 			paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 			vaddr += PAGE_SIZE;
 		}
-		acquire_spinlock_hard(&kernel_vmm.lock, &SPINLOCK_HARD_ISTATE);
-
-		result = true;
 	}
-	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
 
-	return result;
+	return !not_expandable;
 }
 
-bool try_expand_vmem_bottom(VMemHandle handle, uint64_t size){
-	bool result = false;
+bool try_expand_vmem_top(VMemHandle handle, uint64_t size){
+	return _try_expand_vmem_top(handle, size, true); 
+}
+
+bool _try_expand_vmem_bottom(VMemHandle handle, uint64_t size, bool use_spinlock){
+	
 	//adjust size
 	if(size % PAGE_SIZE != 0)
 		size += PAGE_SIZE - (size % PAGE_SIZE);
 
-	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+	//equivalent to 
+	//ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+	InterruptState lock_istate;
+	if(use_spinlock)
+		acquire_spinlock_hard(&kernel_vmm.lock, &lock_istate);
+
+
 	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
 
-	if(desc->type != VM_TYPE_HEAP && desc->type != VM_TYPE_STACK && desc->type != VM_TYPE_GENERAL_USE){
-		result = false;
-	}else if(size > desc->lower_padding){
-		result = false;
-	}else{
-		//map the memory to some free frames
-		void* vaddr = get_no_padding_start_addr(desc)-size;
-		void* desc_start_vaddr = desc->start_vaddr;
+	bool is_type_invalid = desc->type != VM_TYPE_HEAP && desc->type != VM_TYPE_STACK && desc->type != VM_TYPE_GENERAL_USE;
+	bool is_too_small = size > desc->lower_padding;
+	bool not_expandable = is_type_invalid || is_too_small ;
+	
+	//map the memory to some free frames
+	void* vaddr = get_no_padding_start_addr(desc)-size;
+	void* desc_start_vaddr = desc->start_vaddr;
 		
+	if(!not_expandable){
 		//set the new padding
 		desc->lower_padding -= size;
-
-		release_spinlock_hard(&kernel_vmm.lock, &SPINLOCK_HARD_ISTATE);
+		//equivalent to
+		//RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+		if(use_spinlock)
+			release_spinlock_hard(&kernel_vmm.lock, &lock_istate);
 		for(uint64_t i = 0; i < size; i+=PAGE_SIZE){
 			KASSERT(vaddr >= desc_start_vaddr);
 			paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 			vaddr += PAGE_SIZE;
 		}
-		acquire_spinlock_hard(&kernel_vmm.lock, &SPINLOCK_HARD_ISTATE);
-
-		result = true;
 	}
-	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
-	return result;
+	return !not_expandable;
+}
+
+bool try_expand_vmem_bottom(VMemHandle handle, uint64_t size){
+	return _try_expand_vmem_bottom(handle, size, true);
 }
 
 uint64_t get_vmem_size(VMemHandle handle){
@@ -523,6 +541,10 @@ VMemHandle get_vmem_from_address(void* addr){
 			break;
 		descriptor = descriptor->next;
 	}
+	if(addr >= descriptor->start_vaddr + descriptor->size_bytes)
+		return NULL;
+	if(addr < descriptor->start_vaddr)
+		return NULL;
 	return descriptor;
 }
 
@@ -575,8 +597,9 @@ void debug_print_kernel_vmm(){
 	print("-----kernel VMM state end-----\n");
 }
 
-void print_page_fault_error(uint64_t error){
+void print_page_fault_error(PageFaultInfo page_fault_info){
 	print("[PAGE FAULT] ");
+	uint64_t error = page_fault_info.page_error;
 
 	if(error & 1<<1)
 		print("(write) ");
@@ -597,68 +620,103 @@ void print_page_fault_error(uint64_t error){
 	if(error & 1 <<15)
 		print("caused by SGX ");
 	print("\n");
+
+	print("[PAGE FAULT ADDRESS] ");
+	print_uint64_hex((uint64_t)page_fault_info.fault_address);
+	print("\n");
+	if(page_fault_info.fault_address <= NULL + PAGE_SIZE)
+		print("[PAGE FAULT] NULL PAGE POINTER DEREFERENCE\n");
+
+	print("[PAGE FAULT VMEM] ");
+	if(page_fault_info.fault_vmem == NULL){
+		print("NULL vmem (not allocated virtual memory)");
+	}else{
+		print(get_vm_type_string(get_vmem_type(page_fault_info.fault_vmem)));
+		print(" ");
+		print_uint64_hex((uint64_t)get_vmem_addr(page_fault_info.fault_vmem));
+		print(" -> ");
+		print_uint64_hex((uint64_t)get_vmem_addr(page_fault_info.fault_vmem) + get_vmem_size(page_fault_info.fault_vmem));
+	}
+	print("\n");
 }
 
-//TODO: make it race condition free
-void page_fault(InterruptInfo info){
-#ifdef FREEZE_ON_PAGE_FAULT
-	freeze_cpu();
-#endif
+//return true if the page fault is solved
+bool page_fault_check_identity_map_load(PageFaultInfo pf_info){
+	if(pf_info.fault_vmem == NULL)
+		return false;
 
-	uint64_t error = info.error;
-	uint64_t fault_address;
-	asm("mov %%cr2, %0" : "=r"(fault_address) : : "cc");
-	VMemHandle handle = get_vmem_from_address((void*)fault_address);
-	VirtualMemoryType type = get_vmem_type(handle);
-	bool page_not_present = !(error & 1);
-
-	if(type == VM_TYPE_IDENTITY_MAP && page_not_present){
+	VirtualMemoryType type = get_vmem_type(pf_info.fault_vmem);
+	if(type == VM_TYPE_IDENTITY_MAP && pf_info.page_not_present){
 #ifdef PRINT_ALL_PAGE_FAULTS
-	if(!is_kio_initialized())
-		kpanic(UNRECOVERABLE_PAGE_FAULT);
-	print_page_fault_error(error);
+		if(is_kio_initialized())
+			print_page_fault_error(pf_info);
 #endif
 		//load the identity map pages
-		void* to_map = (void*)fault_address - PAGE_FAULT_ADDITIONAL_PAGE_LOAD/2;
+		void* to_map = (void*)pf_info.fault_address - PAGE_FAULT_ADDITIONAL_PAGE_LOAD/2;
 		void* last_page = to_map + (1+PAGE_FAULT_ADDITIONAL_PAGE_LOAD)*PAGE_SIZE;
 		for(; to_map < last_page; to_map+=PAGE_SIZE){
 			paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 		}
-		return;
+		return true;
 	}
-	if(!is_kio_initialized())
-		kpanic(UNRECOVERABLE_PAGE_FAULT);
-	print_page_fault_error(error);
-	print("[PAGE FAULT ADDRESS] ");
-	print_uint64_hex(fault_address);
-	print("\n");
-	if(fault_address == 0)
-		print("[PAGE FAULT] NULL POINTER DEREFERENCE\n");
+	return false;
+}
 
-	print("[PAGE FAULT VMEM] ");
-	print(get_vm_type_string(get_vmem_type(handle)));
-	print(" ");
-	print_uint64_hex((uint64_t)get_vmem_addr(handle));
-	print(" -> ");
-	print_uint64_hex((uint64_t)get_vmem_addr(handle) + get_vmem_size(handle));
-	print("\n");
+//return true if the page fault is solved
+bool page_fault_check_stack_overflow(PageFaultInfo pf_info){
+	if(pf_info.fault_vmem == NULL)
+		return false;
 
-	if(get_vmem_type(handle) == VM_TYPE_STACK && fault_address < (uint64_t)get_vmem_addr(handle) && page_not_present){
+	if(get_vmem_type(pf_info.fault_vmem) == VM_TYPE_STACK && pf_info.fault_address < get_vmem_addr(pf_info.fault_vmem) && pf_info.page_not_present){
+		if(!is_kio_initialized())
+			kpanic(UNRECOVERABLE_PAGE_FAULT);
+		print_page_fault_error(pf_info);
 		print("[PAGE FAULT] POSSIBLE STACK OVERFLOW\n");
 		//possible stack overflow, try to expand
 		//only if we do not consume the security minimum stack padding
 		//used to check for stack overflows
-		VirtualMemoryDescriptor* desc = handle;
+		//TODO: add the get_lower_padding and get_upper_padding function and
+		//use it in this function
+		VirtualMemoryDescriptor* desc = pf_info.fault_vmem;
 		int64_t remaining_padding = (int64_t)desc->lower_padding - KERNEL_STACK_EXPANSION_STEP;
 		if(remaining_padding >= MINIMUM_STACK_PADDING){
-			if(try_expand_vmem_bottom(handle, KERNEL_STACK_EXPANSION_STEP)){
+			if(_try_expand_vmem_bottom(pf_info.fault_vmem, KERNEL_STACK_EXPANSION_STEP, false)){
 				print("[PAGE FAULT] STACK EXPANDED, TRYING TO CONTINUE\n\n");
-				return;
+				return true;
 			}
 		}
 		print("[PAGE FAULT] FAILED TO EXPAND THE STACK\n\n");
-
 	}
-	kpanic(UNRECOVERABLE_PAGE_FAULT);
+	return false;
+}
+
+void page_fault(InterruptInfo info){
+#ifdef FREEZE_ON_PAGE_FAULT
+	freeze_cpu();
+#endif
+	uint64_t fault_address;
+	asm("mov %%cr2, %0" : "=r"(fault_address) : : "cc");
+
+	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+
+	PageFaultInfo page_fault_info;
+	page_fault_info.page_error = info.error;
+	page_fault_info.fault_address = (void*)fault_address;
+	page_fault_info.fault_vmem = get_vmem_from_address((void*)fault_address);
+	page_fault_info.page_not_present = !(info.error & 1);
+
+	bool page_fault_solved = page_fault_check_identity_map_load(page_fault_info);
+	if(!page_fault_solved)
+		page_fault_solved = page_fault_check_stack_overflow(page_fault_info);
+		
+	if(!page_fault_solved){
+		print_page_fault_error(page_fault_info);
+		printf("[PAGE FAULT] CANNOT RECOVER THE PAGE FAULT\n");
+		kpanic(UNRECOVERABLE_PAGE_FAULT);
+	}
+
+	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+
+	return;
 }
 

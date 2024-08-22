@@ -19,6 +19,9 @@ typedef atomic_flag spinlock;
 	InterruptState spinlock_istate; \
 	acquire_spinlock_hard(s, &spinlock_istate)
 
+#define REACQUIRE_SPINLOCK_HARD(s) \
+	acquire_spinlock_hard(s, &spinlock_istate)
+
 #define RELEASE_SPINLOCK_HARD(s) \
 	release_spinlock_hard(s, &spinlock_istate); \
 

@@ -94,13 +94,6 @@ uint64_t kmain(){
 	install_default_interrupt_handler(interrupt_print);
 	install_interrupt_handler(0xd, general_protection_fault);
 
-	DisplayInterface display = get_firmware_display();
-	display.init(display);
-	Color background_color = {0,0,0,255};
-	Color font_color = {0,255,0,255};
-	PSFFont font = get_default_PSF_font();
-	init_kio(display, font, background_color, font_color);
-
 	print("initializing PIT timer\n");
 	pit = create_PIT(0x41);
 	uint64_t pit_real_freq = initialize_PIT_timer(&pit, 1000);
@@ -150,7 +143,7 @@ uint64_t kmain(){
 #ifdef DO_TESTS
 	print("\n-------------------STARTING TESTS-------------------\n");
 	print("starting stack overflower\n");
-	stack_overflower(4000);
+	stack_overflower(70000);
 	asm volatile("int $0x40");
 	heap_stress_test();
 #endif
