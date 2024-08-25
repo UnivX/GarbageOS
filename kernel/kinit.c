@@ -6,6 +6,7 @@
 #include "mem/frame_allocator.h"
 #include "mem/vmm.h"
 #include "mem/heap.h"
+#include "mem/vaddr_cache_shootdown.h"
 #include "elf.h"
 #include "acpi/acpi.h"
 #include "acpi/madt.h"
@@ -139,6 +140,12 @@ void* kinit(){
 	//set local cpu_data
 	LocalKernelData local_data = {stack_mem, get_logical_core_lapic_id()};
 	set_local_kernel_data(bsp_cpuid, local_data);
+	
+	//init the TLB shootdown system
+	//we can initialize it so late in the init sequence
+	//because it's only usefull(and needed) after the initialization of other cpus
+	initialize_vmmcache_shootdown_subsystem();
+	activate_this_cpu_vmmcache_shootdown();
 
 	return get_vmem_addr(stack_mem)+get_vmem_size(stack_mem);//return the stack top
 }

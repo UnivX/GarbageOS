@@ -41,6 +41,7 @@
  */
 typedef bool InterruptState;
 //identifier of the logical cpu, all the ids are contiguos
+#define CPUID_INVALID -1
 typedef uint32_t CPUID;
 
 /*if the size is 0 ignore the range*/
@@ -122,6 +123,8 @@ void delete_paging_structure(void* paging_structure);
 uint64_t get_paging_mem_overhead(void* paging_structure);
 //if new_flags == 0 then the flags are the same
 void copy_paging_structure_mapping_no_page_invalidation(void* src_paging_structure, void* dst_paging_structure, void* start_vaddr, uint64_t size_bytes, uint16_t new_flags);
+void delete_page_translation_cache(volatile void* virtual_addr);
+void delete_all_translation_cache();
 
 //this function is called at the start of the kmain 
 //every call made to the HAL with the exception of kpanic

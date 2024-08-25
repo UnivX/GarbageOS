@@ -4,6 +4,7 @@
 #include "../timer/pit.h"
 #include "../HAL/bios/mp_init_bin.h"
 #include "../mem/vmm.h"
+#include "../mem/vaddr_cache_shootdown.h"
 #include "../util/sync_types.h"
 #include "../kio.h"
 #include "../kernel_data.h"
@@ -45,6 +46,8 @@ void AP_entry_point(void* loaded_stack){
 
 	LocalKernelData local_data = {stack_vmem, get_logical_core_lapic_id()};
 	set_local_kernel_data(cpuid, local_data);
+
+	activate_this_cpu_vmmcache_shootdown();
 	printf("cpu %u64 started, loaded stack : %h64\n", (uint64_t)cpuid, (uint64_t)loaded_stack);
 	kio_flush();
 	enable_interrupts();
@@ -103,4 +106,5 @@ void init_APs(PIT* pit){
 	send_startup_IPI_to_all_excluding_self(vector_addr);
 	PIT_wait_us(pit, 200);
 	*/
+	//TODO: stop every cpu till everyone has started
 }

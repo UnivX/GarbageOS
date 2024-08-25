@@ -189,8 +189,6 @@ uint64_t kmain(){
 
 	printf( is_kheap_corrupted() ? "KERNEL HEAP CORRUPTED\n" : "KERNEL HEAP OK\n" );
 	
-	kio_flush();
-	freeze_cpu();
 	printf("starting other CPUs\n");
 	PIT_wait_ms(&pit, 2000);
 	init_APs(&pit);
@@ -200,6 +198,14 @@ uint64_t kmain(){
 	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_INCLUDING_SELF, 0x51);
 	while(!is_IPI_sending_complete()) ;
 
+	PIT_wait_ms(&pit, 2000);
+
+	printf("allocating kernel vmem\n");
+	VMemHandle temp_handle = allocate_kernel_virtual_memory(PAGE_SIZE*64, VM_TYPE_GENERAL_USE, 4*PAGE_SIZE, 4*PAGE_SIZE);
+	printf("allocated kernel vmem {start=%h64, end=%h64}\n", (uint64_t)get_vmem_addr(temp_handle), (uint64_t)(get_vmem_addr(temp_handle)+get_vmem_size(temp_handle)));
+	printf("deallocating kernel vmem\n");
+	deallocate_kernel_virtual_memory(temp_handle);
+	printf("deallocated kernel vmem\n");
 	PIT_wait_ms(&pit, 2000);
 
 	printf("freezing other cpus\n");

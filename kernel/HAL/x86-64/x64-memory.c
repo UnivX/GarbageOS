@@ -87,7 +87,17 @@ uint64_t* unsync_get_page_table_entry(volatile void* paging_structure, volatile 
 //ivalidate the MMU cache of relative to the virtual address received as parameter
 static inline void invalidate_TLB(volatile void* vaddr){
 	memory_fence();
-	asm("invlpg (%0)" : : "r"(vaddr));
+	asm volatile("invlpg (%0)" : : "r"(vaddr));
+}
+
+void delete_page_translation_cache(volatile void* virtual_addr){
+	invalidate_TLB(virtual_addr);
+}
+
+void delete_all_translation_cache(){
+	uint64_t cr3;
+	asm volatile("mov %%cr3, %0" : "=r"(cr3) : : "cc");
+	asm volatile("mov %0, %%cr3" : : "r"(cr3) : "cc");
 }
 
 void paging_map(volatile void* _paging_structure, volatile void* vaddr, volatile void* paddr, uint16_t flags){

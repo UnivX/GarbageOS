@@ -4,10 +4,9 @@
 #include "../interrupt/interrupts.h"
 #include "heap.h"
 #include "../kio.h"
+#include "vaddr_cache_shootdown.h"
 
-//TODO: protect internal state from race conditions
 static VirtualMemoryManager kernel_vmm;
-
 
 static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descriptor, void* start, uint64_t size);
 static VirtualMemoryDescriptor* cut_descriptor_start(VirtualMemoryDescriptor* descriptor, uint64_t size);
@@ -130,6 +129,11 @@ void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle){
 	for(void* to_map = paddr; to_map < paddr+size; to_map+=PAGE_SIZE){
 		paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 	}
+	VMMCacheShootdownRange shootdown_range;
+	shootdown_range.addr_start = paddr;
+	shootdown_range.size_in_pages = size/PAGE_SIZE;
+	if(is_vmmcache_shootdown_subsystem_initialized())
+		vmmcache_shootdown(shootdown_range);
 }
 
 VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
@@ -170,10 +174,17 @@ VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
 		paging_map(kernel_vmm.kernel_paging_structure, vaddr+i, paddr+i, page_flags | PAGE_PRESENT);
 	}
 
+	VMMCacheShootdownRange shootdown_range;
+	shootdown_range.addr_start = vaddr;
+	shootdown_range.size_in_pages = no_padding_size/PAGE_SIZE;
+	if(is_vmmcache_shootdown_subsystem_initialized())
+		vmmcache_shootdown(shootdown_range);
+
 	return (VMemHandle)cutted_descriptor;
 }
 
 VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags){
+	KASSERT(size % PAGE_SIZE == 0);
 	VMemHandle result = NULL;
 	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
 	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
@@ -198,6 +209,18 @@ VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure,
 
 		RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
 		copy_paging_structure_mapping_no_page_invalidation(src_paging_structure, kernel_vmm.kernel_paging_structure, vaddr, size, page_flags);
+		//invalidate translation cache
+		for(uint64_t i = 0; i < size; i+=PAGE_SIZE){
+			uint64_t translation_vaddr = (uint64_t)(vaddr)+i;
+			delete_page_translation_cache((void*)translation_vaddr);
+		}
+
+		VMMCacheShootdownRange shootdown_range;
+		shootdown_range.addr_start = vaddr;
+		shootdown_range.size_in_pages = size/PAGE_SIZE;
+		if(is_vmmcache_shootdown_subsystem_initialized())
+			vmmcache_shootdown(shootdown_range);
+
 		REACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
 		result = (VMemHandle)cutted_descriptor;
 	}
@@ -239,17 +262,29 @@ VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type,
 		paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 		vaddr += PAGE_SIZE;
 	}
+
+	VMMCacheShootdownRange shootdown_range;
+	shootdown_range.addr_start = vaddr;
+	shootdown_range.size_in_pages = no_padding_size/PAGE_SIZE;
+	if(is_vmmcache_shootdown_subsystem_initialized())
+		vmmcache_shootdown(shootdown_range);
+
 	return (VMemHandle)cutted_descriptor;
 }
 
 bool deallocate_kernel_virtual_memory(VMemHandle handle){
 	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
 	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+	KASSERT(get_vmem_type(desc) != VM_TYPE_FREE);
+	KASSERT(get_vmem_type(desc) != VM_TYPE_IDENTITY_MAP_FREE);
 	//get the free type based on the vaddr
 	VirtualMemoryType free_type = desc->start_vaddr < IDENTITY_MAP_VMEM_END ? VM_TYPE_IDENTITY_MAP_FREE : VM_TYPE_FREE;
 
-	//invalidate and free virtual memory
-	if(!free_type){
+	
+	//i don't know WTH is this if
+	//if(!free_type){
+	{
+		//invalidate and free virtual memory
 		void* vaddr = get_no_padding_start_addr(desc);
 		for(uint64_t i = 0; i < get_no_padding_size(desc); i+=PAGE_SIZE){
 			if(desc->type == VM_TYPE_HEAP || desc->type == VM_TYPE_STACK || desc->type == VM_TYPE_GENERAL_USE){
@@ -260,6 +295,11 @@ bool deallocate_kernel_virtual_memory(VMemHandle handle){
 			invalidate_paging_mapping(kernel_vmm.kernel_paging_structure, vaddr);
 			vaddr += PAGE_SIZE;
 		}
+		VMMCacheShootdownRange shootdown_range;
+		shootdown_range.addr_start = vaddr;
+		shootdown_range.size_in_pages = get_no_padding_size(desc) /PAGE_SIZE;
+		if(is_vmmcache_shootdown_subsystem_initialized())
+			vmmcache_shootdown(shootdown_range);
 	}
 	
 	//set the range as a free one
@@ -337,6 +377,11 @@ bool _try_expand_vmem_top(VMemHandle handle, uint64_t size, bool use_spinlock){
 			paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 			vaddr += PAGE_SIZE;
 		}
+		VMMCacheShootdownRange shootdown_range;
+		shootdown_range.addr_start = vaddr;
+		shootdown_range.size_in_pages = size/PAGE_SIZE;
+		if(is_vmmcache_shootdown_subsystem_initialized())
+			vmmcache_shootdown(shootdown_range);
 	}
 
 	return !not_expandable;
@@ -381,6 +426,11 @@ bool _try_expand_vmem_bottom(VMemHandle handle, uint64_t size, bool use_spinlock
 			paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 			vaddr += PAGE_SIZE;
 		}
+		VMMCacheShootdownRange shootdown_range;
+		shootdown_range.addr_start = vaddr;
+		shootdown_range.size_in_pages = size/PAGE_SIZE;
+		if(is_vmmcache_shootdown_subsystem_initialized())
+			vmmcache_shootdown(shootdown_range);
 	}
 	return !not_expandable;
 }
@@ -658,6 +708,12 @@ bool page_fault_check_identity_map_load(PageFaultInfo pf_info){
 		for(; to_map < last_page; to_map+=PAGE_SIZE){
 			paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 		}
+		VMMCacheShootdownRange shootdown_range;
+		shootdown_range.addr_start = to_map;
+		shootdown_range.size_in_pages = (last_page-to_map)/PAGE_SIZE;
+		if(is_vmmcache_shootdown_subsystem_initialized())
+			vmmcache_shootdown(shootdown_range);
+		
 		return true;
 	}
 	return false;
