@@ -648,8 +648,9 @@ bool page_fault_check_identity_map_load(PageFaultInfo pf_info){
 	VirtualMemoryType type = get_vmem_type(pf_info.fault_vmem);
 	if(type == VM_TYPE_IDENTITY_MAP && pf_info.page_not_present){
 #ifdef PRINT_ALL_PAGE_FAULTS
-		if(is_kio_initialized())
+		if(is_kio_initialized()){
 			print_page_fault_error(pf_info);
+		}
 #endif
 		//load the identity map pages
 		void* to_map = (void*)pf_info.fault_address - PAGE_FAULT_ADDITIONAL_PAGE_LOAD/2;
@@ -696,20 +697,20 @@ struct PageFaultState{
 } page_fault_state = {false, {0}};
 
 void page_fault(InterruptInfo info){
-#ifdef FREEZE_ON_PAGE_FAULT
-	freeze_cpu();
-#endif
 	uint64_t fault_address;
 	asm("mov %%cr2, %0" : "=r"(fault_address) : : "cc");
 
+#ifdef FREEZE_ON_PAGE_FAULT
+	freeze_cpu();
+#endif
+#ifdef PRINT_ALL_PAGE_FAULTS
+	if(is_kio_initialized())
+		print_interrupt_savedcontext(info.saved_context);
+#endif
+
 	acquire_spinlock(&page_fault_state.lock);
 	if(page_fault_state.servicing_page_fault){
-		PageFaultInfo temp_info;
-		temp_info.fault_address = (void*)fault_address;
-		temp_info.fault_vmem = get_vmem_from_address((void*)fault_address);
-		temp_info.page_error = info.error;
-		temp_info.page_not_present = !(info.error & 1);
-		print_page_fault_error(temp_info);
+		printf("[UNRECOVERABLE PAGE FAULT] fault addr=%h64", fault_address);
 		kpanic_with_msg(UNRECOVERABLE_PAGE_FAULT, "double page fault detected");
 	}
 	page_fault_state.servicing_page_fault = true;
@@ -718,10 +719,8 @@ void page_fault(InterruptInfo info){
 	//the interrupts are already disabled, no need for an hard lock
 	acquire_spinlock(&kernel_vmm.lock);
 
-	if(is_kio_initialized()){
-	}
-
 	PageFaultInfo page_fault_info;
+	page_fault_info.interrupt_info = info;
 	page_fault_info.page_error = info.error;
 	page_fault_info.fault_address = (void*)fault_address;
 	page_fault_info.fault_vmem = get_vmem_from_address((void*)fault_address);

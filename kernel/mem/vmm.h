@@ -8,6 +8,7 @@ Virtual Memory Manager(VMM)
 #include "../kdefs.h"
 #include "../hal.h"
 #include "../util/sync_types.h"
+#include "../interrupt/interrupts.h"
 
 #define VIRTUAL_MEMORY_DESCRIPTOR_EARLY_ALLOCATION_SIZE 64
 #define COPY_FLAGS_ON_MMAP_COPY 0
@@ -43,6 +44,7 @@ typedef struct PageFaultInfo{
 	uint64_t page_error;
 	void* fault_address;
 	VMemHandle fault_vmem;
+	InterruptInfo interrupt_info;
 	bool page_not_present;
 } PageFaultInfo;
 

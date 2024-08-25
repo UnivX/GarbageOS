@@ -34,4 +34,4 @@ typedef struct x64SavedContext{
 	} __attribute__((packed)) pre_rbp;
 }__attribute__((packed)) x64SavedContext;
 
-x64SavedContext* getx64SavedContext(void* interrupt_frame);
+x64SavedContext* getx64SavedContext(void* interrupt_savedcontext);

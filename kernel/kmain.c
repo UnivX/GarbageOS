@@ -189,6 +189,8 @@ uint64_t kmain(){
 
 	printf( is_kheap_corrupted() ? "KERNEL HEAP CORRUPTED\n" : "KERNEL HEAP OK\n" );
 	
+	kio_flush();
+	freeze_cpu();
 	printf("starting other CPUs\n");
 	PIT_wait_ms(&pit, 2000);
 	init_APs(&pit);
