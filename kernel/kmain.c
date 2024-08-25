@@ -19,7 +19,6 @@
 //first usable intel CPU in history for this kernel : XEON Nocona (Jun 2004)
 //first usable AMD CPU in history for this kernel? : Opteron (Apr 2003).
 
-//TODO: make available all the saved registers to the interrupt routine
 //TODO: replace print with printf
 //TODO: do tlb shutdown
 //TODO: fully implement memset, memcpy, memmove and memcmp

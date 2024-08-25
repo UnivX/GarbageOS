@@ -690,6 +690,11 @@ bool page_fault_check_stack_overflow(PageFaultInfo pf_info){
 	return false;
 }
 
+struct PageFaultState{
+	bool servicing_page_fault;
+	spinlock lock;
+} page_fault_state = {false, {0}};
+
 void page_fault(InterruptInfo info){
 #ifdef FREEZE_ON_PAGE_FAULT
 	freeze_cpu();
@@ -697,7 +702,24 @@ void page_fault(InterruptInfo info){
 	uint64_t fault_address;
 	asm("mov %%cr2, %0" : "=r"(fault_address) : : "cc");
 
-	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+	acquire_spinlock(&page_fault_state.lock);
+	if(page_fault_state.servicing_page_fault){
+		PageFaultInfo temp_info;
+		temp_info.fault_address = (void*)fault_address;
+		temp_info.fault_vmem = get_vmem_from_address((void*)fault_address);
+		temp_info.page_error = info.error;
+		temp_info.page_not_present = !(info.error & 1);
+		print_page_fault_error(temp_info);
+		kpanic_with_msg(UNRECOVERABLE_PAGE_FAULT, "double page fault detected");
+	}
+	page_fault_state.servicing_page_fault = true;
+	release_spinlock(&page_fault_state.lock);
+	
+	//the interrupts are already disabled, no need for an hard lock
+	acquire_spinlock(&kernel_vmm.lock);
+
+	if(is_kio_initialized()){
+	}
 
 	PageFaultInfo page_fault_info;
 	page_fault_info.page_error = info.error;
@@ -715,7 +737,11 @@ void page_fault(InterruptInfo info){
 		kpanic(UNRECOVERABLE_PAGE_FAULT);
 	}
 
-	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+	release_spinlock(&kernel_vmm.lock);
+
+	acquire_spinlock(&page_fault_state.lock);
+	page_fault_state.servicing_page_fault = false;
+	release_spinlock(&page_fault_state.lock);
 
 	return;
 }

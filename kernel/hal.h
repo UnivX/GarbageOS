@@ -193,3 +193,13 @@ void get_cpu_frequencies(CPUFrequencies* out);
 void* get_real_mode_startup_frame();
 void* get_real_mode_secondary_startup_frame();
 void* get_bootloader_paging_structure();
+
+typedef struct InterruptArgs{
+	uint64_t arg0;
+	uint64_t arg1;
+	uint64_t arg2;
+	uint64_t arg3;
+} InterruptArgs;
+
+InterruptArgs get_interrupt_args_from_saved_context(void* interrupt_savedcontext);
+void print_interrupt_savedcontext(void* interrupt_savedcontext);

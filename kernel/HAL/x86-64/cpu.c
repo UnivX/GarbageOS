@@ -60,7 +60,7 @@ void setup_idt(){
 			ist = 2;
 
 		//if it's an exception set it as a trap gate
-		//and make it interruptible
+		//and make it ininterruptible
 		//if it's a normal interrupt make it ininterruptible
 		if(i < 32)
 			attributes_type |= IDT_TRAP_TYPE;

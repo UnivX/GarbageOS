@@ -31,8 +31,11 @@ void init_kio(const DisplayInterface display, const PSFFont font, const Color ba
 void putchar(char c, bool flush);
 void print(const char* str);
 void kio_flush();
-//%u64
-//%h64
+//u = unsigned decimal print
+//x = hexadecimal print
+//h = padded hexadecimal print
+//%u/x/h64
+//%u/x/h32
 //%s
 void printf(const char* format, ...);
 void print_uint64_hex(uint64_t n);

@@ -16,6 +16,7 @@ typedef struct InterruptInfo{
 	uint64_t error;
 	uint64_t interrupt_number;
 	void* extra_data;
+	void* saved_context;
 } InterruptInfo;
 
 typedef void (InterruptHandler)(InterruptInfo);

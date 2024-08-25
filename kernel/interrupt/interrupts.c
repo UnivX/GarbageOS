@@ -64,7 +64,7 @@ void set_interrupt_handler_extra_data(uint64_t interrupt_number, void* extra_dat
 }
 
 //this function will be called by some assembly defined in the HAL
-void interrupt_routine(uint64_t interrupt_number, uint64_t error){
+void interrupt_routine(uint64_t interrupt_number, uint64_t error, void* interrupt_savedcontext){
 	KASSERT(interrupt_number < MAX_INTERRUPTS);
 
 	if(pic_present){
@@ -93,7 +93,7 @@ void interrupt_routine(uint64_t interrupt_number, uint64_t error){
 	InterruptHandler* default_handler_copy = NULL;
 
 	ACQUIRE_SPINLOCK_HARD(&handlers_lock);
-	InterruptInfo info = {error, interrupt_number, extra_data_array[interrupt_number]};
+	InterruptInfo info = {error, interrupt_number, extra_data_array[interrupt_number], interrupt_savedcontext};
 
 	if(handlers[interrupt_number] != NULL)
 		vec_handler = handlers[interrupt_number];

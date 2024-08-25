@@ -136,15 +136,15 @@ uint64_t fill_digit_buffer(uint64_t n, uint64_t base, uint8_t* buffer, uint64_t 
 	return counter;
 }
 
-void print_uint64_hex(uint64_t n){
-
-	uint8_t buffer[sizeof(n)*2];
-	fill_digit_buffer(n, 16, buffer, sizeof(n)*2);
+void print_uint64_hex(uint64_t number){
+	const uint64_t buffer_size = sizeof(uint64_t)*2;
+	uint8_t buffer[buffer_size];
+	fill_digit_buffer(number, 16, buffer, buffer_size);
 
 	ACQUIRE_SPINLOCK_HARD(&kio_state.lock);
 	unsync_putchar('0', false);
 	unsync_putchar('x', false);
-	for(int i = sizeof(n)*2-1; i >= 0; i--){
+	for(int i = buffer_size-1; i >= 0; i--){
 		int digit = buffer[i];
 		if(digit >= 10){
 			unsync_putchar('A'+digit-10, false);
@@ -167,7 +167,7 @@ void print_uint64_dec(uint64_t n){
 		unsync_putchar('0', false);
 
 	for(int i = written_digits_count-1; i >= 0; i--){
-		int digit = buffer[i];
+		uint8_t digit = buffer[i];
 		unsync_putchar('0'+digit, false);
 	}
 
@@ -175,13 +175,16 @@ void print_uint64_dec(uint64_t n){
 	RELEASE_SPINLOCK_HARD(&kio_state.lock);
 }
 
-void unsync_print_uint64_hex(uint64_t n){
-	uint8_t buffer[sizeof(n)*2];
-	fill_digit_buffer(n, 16, buffer, sizeof(n)*2);
+void unsync_print_uintmax_hex(uintmax_t number, int size_bytes){
+	KASSERT(size_bytes <= sizeof(uintmax_t))
+	const int buffer_size = sizeof(uintmax_t)*2;
+	uint8_t buffer[buffer_size];
+	fill_digit_buffer(number, 16, buffer, buffer_size);
 
 	unsync_putchar('0', false);
 	unsync_putchar('x', false);
-	for(int i = sizeof(n)*2-1; i >= 0; i--){
+	KASSERT(buffer_size >= (size_bytes*2));
+	for(int i = buffer_size-1; i >= buffer_size-(size_bytes*2); i--){
 		int digit = buffer[i];
 		if(digit >= 10){
 			unsync_putchar('A'+digit-10, false);
@@ -191,8 +194,26 @@ void unsync_print_uint64_hex(uint64_t n){
 	}
 }
 
+void unsync_print_uintmax_hex_not_padded(uintmax_t number, int size_bytes){
+	KASSERT(size_bytes <= sizeof(uintmax_t))
+	const int buffer_size = sizeof(uintmax_t)*2;
+	uint8_t buffer[buffer_size];
+	uint64_t written_digits_count = fill_digit_buffer(number, 16, buffer, buffer_size);
 
-void unsync_print_uint64_dec(uint64_t n){
+	unsync_putchar('0', false);
+	unsync_putchar('x', false);
+	for(int i = written_digits_count-1; i >= 0; i--){
+		uint8_t digit = buffer[i];
+		if(digit >= 10){
+			unsync_putchar('A'+digit-10, false);
+		}else{
+			unsync_putchar('0'+digit, false);
+		}
+	}
+}
+
+
+void unsync_print_uintmax_dec(uintmax_t n){
 	const uint64_t buffer_size = 128;
 	uint8_t buffer[buffer_size];
 	uint64_t written_digits_count = fill_digit_buffer(n, 10, buffer, buffer_size);
@@ -234,13 +255,32 @@ void printf(const char* format, ...){
 			if(*format == '%'){
 				unsync_putchar('%', false);
 			}else{
+				//TODO: optimize
 				//if we are parsing a format token
 				if(substr_cmp(format, "u64")){
 					format+=2;
-					unsync_print_uint64_dec(va_arg(ptr, uint64_t));
+					uintmax_t int_value = (uintmax_t)va_arg(ptr, uint64_t);
+					unsync_print_uintmax_dec(int_value);
 				}else if(substr_cmp(format, "h64")){
 					format+=2;
-					unsync_print_uint64_hex(va_arg(ptr, uint64_t));
+					uintmax_t value = (uintmax_t)va_arg(ptr, uint64_t);
+					unsync_print_uintmax_hex(value, sizeof(uint64_t));
+				}else if(substr_cmp(format, "x64")){
+					format+=2;
+					uintmax_t value = (uintmax_t)va_arg(ptr, uint64_t);
+					unsync_print_uintmax_hex_not_padded(value, sizeof(uint64_t));
+				}if(substr_cmp(format, "u32")){
+					format+=2;
+					uintmax_t int_value = (uintmax_t)va_arg(ptr, uint32_t);
+					unsync_print_uintmax_dec(int_value);
+				}else if(substr_cmp(format, "h32")){
+					format+=2;
+					uintmax_t value = (uintmax_t)va_arg(ptr, uint32_t);
+					unsync_print_uintmax_hex(value, sizeof(uint32_t));
+				}else if(substr_cmp(format, "x32")){
+					format+=2;
+					uintmax_t value = (uintmax_t)va_arg(ptr, uint32_t);
+					unsync_print_uintmax_hex_not_padded(value, sizeof(uint32_t));
 				}else if(substr_cmp(format, "s")){
 					unsync_print(va_arg(ptr, const char*));
 				}

@@ -1,5 +1,7 @@
+.extern kpanic
 .section .text
 .altmacro 
+
 
 .macro generate_entry
 .quad isr_stub_\@
@@ -37,35 +39,39 @@ push %r8
 push %r9
 push %r10
 push %r11
-push %gs
-push %fs
+pushw %gs
+pushw %fs
 
-push %rax
 mov %ds, %ax
 push %ax
 mov %es, %ax
 push %ax
 
-#stack alignment to 16
-push %rax
-push %ax
-push %ax
+mov %rsp, %rcx
+
+mov %rsp, %rax
+and $0xfffffffffffffff0, %rax
+mov %rax, %rsp
+
+push %rcx
+#second push for algin to 16
+push %rcx
 .endm
 
 .macro pop_context
-#remove stack alignment to 16
-pop %ax
-pop %ax
+#first pop for algin to 16
 pop %rax
+
+pop %rax
+mov %rax, %rsp
 
 pop %ax
 mov %ax, %es
 pop %ax
 mov %ax, %ds
-pop %rax
 
-pop %fs
-pop %gs
+popw %fs
+popw %gs
 pop %r11
 pop %r10
 pop %r9
@@ -84,12 +90,18 @@ isr_stub_\n:
 	push_context
 	set_segments
 
+#third param stack frame
+	mov %rbp, %rdx
+
 #get the base pointer remove 8 bytes for the base pointer saved in the stack and get the error code
+#second param
 	mov %rbp, %rsi
 	add $8, %rsi
 	mov (%rsi), %rsi
 
+#interrupt number(first param)
 	mov $\n, %rdi
+
 	cld
 	call interrupt_routine
 	pop_context
@@ -103,6 +115,9 @@ isr_stub_\n:
 isr_stub_\n:
 	push_context
 	set_segments
+
+	#third param stack frame
+	mov %rbp, %rdx
 	mov $\n, %rdi
 	mov $0, %rsi
 	cld
