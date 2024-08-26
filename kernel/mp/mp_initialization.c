@@ -18,7 +18,7 @@ static struct MPGlobalData{
 } mp_gdata;
 
 void AP_entry_point(void* loaded_stack){
-	VMemHandle stack_vmem = NULL;
+	VMemHandle stack_vmem = {NULL, NULL};
 
 	acquire_spinlock(&mp_gdata.lock);
 	for(uint64_t i = 0; i < mp_gdata.init_data.APs_count; i++){
@@ -31,7 +31,8 @@ void AP_entry_point(void* loaded_stack){
 	release_spinlock(&mp_gdata.lock);
 
 	//set the real paging structure
-	set_active_paging_structure((volatile void*)get_kernel_VMM_paging_structure());
+	VirtualMemoryManager* kernel_vmm = get_kernel_VMM_from_kernel_data();
+	set_active_paging_structure((volatile void*)get_VMM_paging_structure(kernel_vmm));
 	enable_PAT();
 	//init_cpu(0);
 	//freeze_cpu();
@@ -39,7 +40,7 @@ void AP_entry_point(void* loaded_stack){
 	CPUID cpuid = register_local_kernel_data_cpu();
 	init_cpu(cpuid);
 
-	KASSERT(stack_vmem != NULL);
+	KASSERT(!is_vmemhandle_invalid(stack_vmem));
 
 	init_local_interrupt_controllers();
 
@@ -77,8 +78,9 @@ MPInitError unsync_set_up_mp_global_data(){
 
 	mp_gdata.APs_kernel_data = kmalloc(sizeof(APKernelData)*mp_gdata.init_data.APs_count);
 
+	VirtualMemoryManager* kernel_vmm = get_kernel_VMM_from_kernel_data();
 	for(uint64_t i = 0; i < mp_gdata.init_data.APs_count; i++){
-		VMemHandle kstack = allocate_kernel_virtual_memory(KERNEL_STACK_SIZE, VM_TYPE_STACK, 16*KB, 64*MB);
+		VMemHandle kstack = allocate_kernel_virtual_memory(kernel_vmm, KERNEL_STACK_SIZE, VM_TYPE_STACK, 16*KB, 64*MB);
 		mp_gdata.APs_kernel_data[i].kernel_stack = kstack;
 		mp_gdata.init_data.stacks_top[i] = get_vmem_addr(kstack)+get_vmem_size(kstack);//stack_top
 	}
@@ -97,7 +99,8 @@ MPInitError init_APs(PIT* pit){
 		return mp_gdata_setup_err;
 
 	//generate the trampoline code to jump to the init AP function
-	volatile void* startup_frame = create_mp_init_routine_in_RAM(get_kernel_VMM_paging_structure(), (void*)&mp_gdata.init_data);
+	VirtualMemoryManager* kernel_vmm = get_kernel_VMM_from_kernel_data();
+	volatile void* startup_frame = create_mp_init_routine_in_RAM(get_VMM_paging_structure(kernel_vmm), (void*)&mp_gdata.init_data);
 	uint8_t vector_addr = ((uint64_t)startup_frame) >> 12;
 
 	//get the lapic ids

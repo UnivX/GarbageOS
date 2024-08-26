@@ -19,12 +19,13 @@ void setup_virtual_memory(){
 	
 	//create new paging_structure;
 	void* new_paging_struct = create_empty_kernel_paging_structure();
-	initialize_kernel_VMM(new_paging_struct);
+	initialize_kernel_data_kernel_VMM(new_paging_struct);
+	VirtualMemoryManager* kernel_vmm = get_kernel_VMM_from_kernel_data();
 
 	//DO NOT IDENTITY MAP THE FIRST PAGE(it's needed for the nullpointer exception)
 	void* identity_map_start_addr = (void*)PAGE_SIZE;
-	VMemHandle identity_map_handle = identity_map(identity_map_start_addr, (uint64_t)IDENTITY_MAP_VMEM_END-(uint64_t)identity_map_start_addr);
-	KASSERT(identity_map_handle != NULL);
+	VMemHandle identity_map_handle = identity_map(kernel_vmm, identity_map_start_addr, (uint64_t)IDENTITY_MAP_VMEM_END-(uint64_t)identity_map_start_addr);
+	KASSERT(!is_vmemhandle_invalid(identity_map_handle));
 
 	//OLD IDENTITY MAPPING CODE
 	//identity map usable physical memory
@@ -42,7 +43,7 @@ void setup_virtual_memory(){
 			paddr_start = PAGE_SIZE;
 			size -= PAGE_SIZE;
 		}
-		load_identity_map_pages((void*)paddr_start, size, identity_map_handle);
+		load_identity_map_pages(kernel_vmm, (void*)paddr_start, size, identity_map_handle);
 		//KASSERT(identity_map((void*)paddr_start, size) != NULL);
 	}
 
@@ -65,7 +66,8 @@ void setup_virtual_memory(){
 		if(segments[i].writeable)
 			segments_flags |= PAGE_WRITABLE;
 
-		KASSERT(copy_memory_mapping_from_paging_structure(old_paging_struct, segments[i].vaddr, ssize, segments_flags) != NULL);
+		VMemHandle mmap_copy_handle = copy_memory_mapping_from_paging_structure(kernel_vmm, old_paging_struct, segments[i].vaddr, ssize, segments_flags);
+		KASSERT(!is_vmemhandle_invalid(mmap_copy_handle));
 	}
 
 
@@ -135,7 +137,8 @@ void* kinit(){
 	enable_interrupts();
 
 	//allocate stack
-	VMemHandle stack_mem = allocate_kernel_virtual_memory(KERNEL_STACK_SIZE, VM_TYPE_STACK, 16*KB, 64*MB);
+	VirtualMemoryManager* kernel_vmm = get_kernel_VMM_from_kernel_data();
+	VMemHandle stack_mem = allocate_kernel_virtual_memory(kernel_vmm, KERNEL_STACK_SIZE, VM_TYPE_STACK, 16*KB, 64*MB);
 
 	//set local cpu_data
 	LocalKernelData local_data = {stack_mem, get_logical_core_lapic_id()};

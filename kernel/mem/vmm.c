@@ -5,18 +5,38 @@
 #include "heap.h"
 #include "../kio.h"
 #include "vaddr_cache_shootdown.h"
+#include "../kernel_data.h"
 
-static VirtualMemoryManager kernel_vmm;
-
-static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descriptor, void* start, uint64_t size);
-static VirtualMemoryDescriptor* cut_descriptor_start(VirtualMemoryDescriptor* descriptor, uint64_t size);
+static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryManager* vmm, VirtualMemoryDescriptor* descriptor, void* start, uint64_t size);
+static VirtualMemoryDescriptor* cut_descriptor_start(VirtualMemoryManager* vmm, VirtualMemoryDescriptor* descriptor, uint64_t size);
 static VirtualMemoryDescriptor* allocate_vmem_descriptor();
 static void deallocate_vmm_descriptor(VirtualMemoryDescriptor* d);
-static void update_head();
+static void update_head(VirtualMemoryManager* vmm);
 static const char* get_vm_type_string(VirtualMemoryType vm_type);
 static uint64_t get_no_padding_size(const VirtualMemoryDescriptor* d);
 static void* get_no_padding_start_addr(const VirtualMemoryDescriptor* d);
 void page_fault(InterruptInfo info);
+
+bool is_kernel_virtual_memory(void* vaddr){
+	bool user_addr = vaddr >= USER_VMEM_START && vaddr < USER_VMEM_END;
+	return !user_addr;
+}
+
+bool is_vmemhandle_invalid(VMemHandle h){
+	return h.vmm == NULL && h.vm_desc == NULL;
+}
+
+static void shootdown(void* vaddr_start, uint64_t size_bytes){
+	KASSERT(size_bytes % PAGE_SIZE == 0);
+	VMMCacheShootdownRange shootdown_range;
+	VMMCacheShootdownState state;
+	shootdown_range.addr_start = vaddr_start;
+	shootdown_range.size_in_pages = size_bytes/PAGE_SIZE;
+	if(is_vmmcache_shootdown_subsystem_initialized()){
+		vmmcache_shootdown(shootdown_range, &state);
+		wait_for_vmmcache_shootdown_completition(&state);
+	}
+}
 
 //if the heap isn't already initialized return a bump allocated one
 static VirtualMemoryDescriptor* allocate_vmem_descriptor(){
@@ -43,7 +63,7 @@ static void deallocate_vmm_descriptor(VirtualMemoryDescriptor* d){
 		kfree((void*)d);
 }
 
-void initialize_kernel_VMM(void* paging_structure){
+void initialize_kernel_VMM(VirtualMemoryManager* vmm, void* paging_structure){
 	install_interrupt_handler(0xe, page_fault);
 	VirtualMemoryDescriptor *first_desc = allocate_vmem_descriptor();
 	VirtualMemoryDescriptor *second_desc = allocate_vmem_descriptor();
@@ -64,24 +84,45 @@ void initialize_kernel_VMM(void* paging_structure){
 	second_desc->prev = first_desc;
 	second_desc->next = NULL;
 	
-	kernel_vmm.vm_list_head = first_desc;
-	init_spinlock(&kernel_vmm.lock);
-	kernel_vmm.kernel_paging_structure = paging_structure;
+	vmm->kernel_mode = true;
+	vmm->vm_list_head = first_desc;
+	init_spinlock(&vmm->lock);
+	vmm->paging_structure = paging_structure;
 }
 
-const void* get_kernel_VMM_paging_structure(){
+void initialize_user_VMM(VirtualMemoryManager* vmm, void* paging_structure){
+	install_interrupt_handler(0xe, page_fault);
+	VirtualMemoryDescriptor *desc = allocate_vmem_descriptor();
+
+	desc->start_vaddr = (void*)USER_VMEM_START;//the first page is the nullptr page
+	desc->size_bytes = (uint64_t)USER_VMEM_END - (uint64_t)desc->start_vaddr;
+	desc->size_bytes -= desc->size_bytes % PAGE_SIZE;//round down
+
+	desc->type = VM_TYPE_FREE;
+	desc->prev = NULL;
+	desc->next = NULL;
+
+	vmm->kernel_mode = false;
+	vmm->vm_list_head = desc;
+	vmm->paging_structure = paging_structure;
+	init_spinlock(&vmm->lock);
+}
+
+const void* get_VMM_paging_structure(VirtualMemoryManager* vmm){
 	//readonly pointer, there is no need for the spinlock
-	return kernel_vmm.kernel_paging_structure;
+	return vmm->paging_structure;
 }
 
-VMemHandle identity_map(void* paddr, uint64_t size){
+VMemHandle identity_map(VirtualMemoryManager* vmm, void* paddr, uint64_t size){
 	KASSERT(paddr != NULL);
 	KASSERT(size % PAGE_SIZE == 0);
 	KASSERT((uint64_t)paddr % PAGE_SIZE == 0);
 
-	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
-	VMemHandle result_handle = NULL;
-	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
+	ACQUIRE_SPINLOCK_HARD(&vmm->lock);
+	KASSERT(vmm->kernel_mode);
+	VMemHandle result_handle = {NULL, vmm};
+	const VMemHandle invalid_handle = {NULL, NULL};
+	VirtualMemoryDescriptor *descriptor = vmm->vm_list_head;
 
 	//find the correct descriptor
 	while(descriptor->next != NULL && (descriptor->start_vaddr + descriptor->size_bytes) <= paddr)
@@ -90,57 +131,56 @@ VMemHandle identity_map(void* paddr, uint64_t size){
 	//if the descriptor doesnt contain the requested range then return false
 	//(there cannot be two contiguos consecutive descriptors
 	if(paddr < descriptor->start_vaddr || paddr+size > descriptor->start_vaddr+descriptor->size_bytes){
-		result_handle = NULL;
+		result_handle = invalid_handle;
 	}else if(descriptor->type != VM_TYPE_IDENTITY_MAP_FREE){
-		result_handle = NULL;
+		result_handle = invalid_handle;
 	}else{
-		VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor(descriptor, paddr, size);
+		VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor(vmm, descriptor, paddr, size);
 		KASSERT((uint64_t)cutted_descriptor->start_vaddr % PAGE_SIZE == 0);
 		cutted_descriptor->type = VM_TYPE_IDENTITY_MAP;
 		/*
 		for(void* to_map = cutted_descriptor->start_vaddr; to_map < cutted_descriptor->start_vaddr+cutted_descriptor->size_bytes; to_map+=PAGE_SIZE){
-			paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
+			paging_map(vmm->paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 		}
 		*/
 	
-		result_handle = (VMemHandle)cutted_descriptor;
+		result_handle.vmm = vmm;
+		result_handle.vm_desc = cutted_descriptor;
 	}
-	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+	RELEASE_SPINLOCK_HARD(&vmm->lock);
 	return result_handle;
 }
 
-void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle){
+void load_identity_map_pages(VirtualMemoryManager* vmm, void* paddr, uint64_t size, VMemHandle handle){
+	KASSERT(handle.vmm == vmm);
 	KASSERT(size%PAGE_SIZE == 0);
 	KASSERT((uint64_t)paddr%PAGE_SIZE == 0);
+	ACQUIRE_SPINLOCK_HARD(&vmm->lock);
+	KASSERT(vmm->kernel_mode);
+	RELEASE_SPINLOCK_HARD(&vmm->lock);
 	//TODO: check if we can lock and unlock the spinlock in the for loop
 
 	/*
-	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+	ACQUIRE_SPINLOCK_HARD(&vmm->lock);
 
-	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)&handle;
+	VirtualMemoryDescriptor* desc = handle.vm_desc;
 	if(paddr < get_no_padding_start_addr(desc))
 		kpanic(VMM_ERROR);
 	if(paddr + size > get_no_padding_start_addr(desc) + get_no_padding_size(desc))
 		kpanic(VMM_ERROR);
 
-	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+	RELEASE_SPINLOCK_HARD(&vmm->lock);
 	*/
 
 	for(void* to_map = paddr; to_map < paddr+size; to_map+=PAGE_SIZE){
-		paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
+		paging_map(vmm->paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 	}
-	VMMCacheShootdownRange shootdown_range;
-	VMMCacheShootdownState state;
-	shootdown_range.addr_start = paddr;
-	shootdown_range.size_in_pages = size/PAGE_SIZE;
-	if(is_vmmcache_shootdown_subsystem_initialized()){
-		vmmcache_shootdown(shootdown_range, &state);
-		wait_for_vmmcache_shootdown_completition(&state);
-	}
+	shootdown(paddr, size);
 }
 
-VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
-	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+VMemHandle memory_map(VirtualMemoryManager* vmm, void* paddr, uint64_t size, uint16_t page_flags){
+	ACQUIRE_SPINLOCK_HARD(&vmm->lock);
+	KASSERT(vmm->kernel_mode);
 #ifdef MEMORY_MAP_PADDING
 	size += MEMORY_MAP_PADDING*2;
 #endif
@@ -149,7 +189,8 @@ VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
 	KASSERT(size % PAGE_SIZE == 0);
 	KASSERT((uint64_t)paddr % PAGE_SIZE == 0);
 
-	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
+	const VMemHandle invalid_handle = {NULL, NULL};
+	VirtualMemoryDescriptor *descriptor = vmm->vm_list_head;
 
 	while( !(descriptor->size_bytes >= size && descriptor->type == VM_TYPE_FREE) && descriptor->next != NULL)
 		descriptor = descriptor->next;
@@ -157,10 +198,10 @@ VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
 	if(descriptor->type != VM_TYPE_FREE){
 		//no need to unlock the spinlock because we are going to panic
 		kpanic(VMM_ERROR);
-		return NULL;
+		return invalid_handle;
 	}
 
-	VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor_start(descriptor, size);
+	VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor_start(vmm, descriptor, size);
 	cutted_descriptor->type = VM_TYPE_MEMORY_MAPPING;
 	KASSERT((uint64_t)cutted_descriptor->start_vaddr % PAGE_SIZE == 0);
 
@@ -171,28 +212,24 @@ VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
 
 	void* vaddr = get_no_padding_start_addr(cutted_descriptor);
 	uint64_t no_padding_size = get_no_padding_size(cutted_descriptor);
-	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+	RELEASE_SPINLOCK_HARD(&vmm->lock);
 
 	for(uint64_t i = 0; i < no_padding_size; i+=PAGE_SIZE){
-		paging_map(kernel_vmm.kernel_paging_structure, vaddr+i, paddr+i, page_flags | PAGE_PRESENT);
+		paging_map(vmm->paging_structure, vaddr+i, paddr+i, page_flags | PAGE_PRESENT);
 	}
 
-	VMMCacheShootdownRange shootdown_range;
-	VMMCacheShootdownState state;
-	shootdown_range.addr_start = vaddr;
-	shootdown_range.size_in_pages = no_padding_size/PAGE_SIZE;
-	if(is_vmmcache_shootdown_subsystem_initialized()){
-		vmmcache_shootdown(shootdown_range, &state);
-		wait_for_vmmcache_shootdown_completition(&state);
-	}
-	return (VMemHandle)cutted_descriptor;
+	shootdown(vaddr, no_padding_size);
+	VMemHandle result = {cutted_descriptor, vmm};
+	return result;
 }
 
-VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags){
+VMemHandle copy_memory_mapping_from_paging_structure(VirtualMemoryManager* vmm, void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags){
 	KASSERT(size % PAGE_SIZE == 0);
-	VMemHandle result = NULL;
-	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
-	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
+	const VMemHandle invalid_handle = {NULL, NULL};
+	VMemHandle result = {NULL, NULL};
+	ACQUIRE_SPINLOCK_HARD(&vmm->lock);
+	KASSERT(vmm->kernel_mode);
+	VirtualMemoryDescriptor *descriptor = vmm->vm_list_head;
 
 	//find the correct descriptor
 	while(descriptor->next != NULL && (descriptor->start_vaddr + descriptor->size_bytes) <= vaddr)
@@ -201,52 +238,48 @@ VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure,
 	//if the descriptor doesnt contain the requested range then return false
 	//(there cannot be two contiguos consecutive descriptors
 	if(vaddr < descriptor->start_vaddr || vaddr+size > descriptor->start_vaddr+descriptor->size_bytes){
-		result = NULL;
+		result = invalid_handle;
 	}else if(descriptor->type != VM_TYPE_FREE){
-		result = NULL;
+		result = invalid_handle;
 	}else{
-		VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor(descriptor, vaddr, size);
+		VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor(vmm, descriptor, vaddr, size);
 		KASSERT((uint64_t)cutted_descriptor->start_vaddr % PAGE_SIZE == 0);
 		cutted_descriptor->type = VM_TYPE_MEMORY_MAPPING;
 
 		if(page_flags == COPY_FLAGS_ON_MMAP_COPY)
 			page_flags = 0;
 
-		RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
-		copy_paging_structure_mapping_no_page_invalidation(src_paging_structure, kernel_vmm.kernel_paging_structure, vaddr, size, page_flags);
+		RELEASE_SPINLOCK_HARD(&vmm->lock);
+		copy_paging_structure_mapping_no_page_invalidation(src_paging_structure, vmm->paging_structure, vaddr, size, page_flags);
 		//invalidate translation cache
 		for(uint64_t i = 0; i < size; i+=PAGE_SIZE){
 			uint64_t translation_vaddr = (uint64_t)(vaddr)+i;
 			delete_page_translation_cache((void*)translation_vaddr);
 		}
 
-		VMMCacheShootdownState state;
-		VMMCacheShootdownRange shootdown_range;
-		shootdown_range.addr_start = vaddr;
-		shootdown_range.size_in_pages = size/PAGE_SIZE;
-		if(is_vmmcache_shootdown_subsystem_initialized()){
-			vmmcache_shootdown(shootdown_range, &state);
-			wait_for_vmmcache_shootdown_completition(&state);
-		}
+		shootdown(vaddr, size);
 
-		REACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
-		result = (VMemHandle)cutted_descriptor;
+		REACQUIRE_SPINLOCK_HARD(&vmm->lock);
+		result.vmm = vmm;
+		result.vm_desc = cutted_descriptor;
 	}
-	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+	RELEASE_SPINLOCK_HARD(&vmm->lock);
 	return result;
 }
 
-VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding){
+VMemHandle allocate_kernel_virtual_memory(VirtualMemoryManager* vmm, uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding){
 	size += lower_padding + upper_padding;
 	KASSERT(size % PAGE_SIZE == 0);
 	bool is_valid = type != VM_TYPE_IDENTITY_MAP_FREE && type != VM_TYPE_IDENTITY_MAP && type != VM_TYPE_MEMORY_MAPPING;
+	const VMemHandle invalid_handle = {NULL, NULL};
 
 	if(!is_valid){
 		kpanic(VMM_ERROR);
-		return NULL;
+		return invalid_handle;
 	}
-	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
-	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
+	ACQUIRE_SPINLOCK_HARD(&vmm->lock);
+	KASSERT(vmm->kernel_mode);
+	VirtualMemoryDescriptor *descriptor = vmm->vm_list_head;
 
 	while( !(descriptor->size_bytes >= size && descriptor->type == VM_TYPE_FREE) && descriptor->next != NULL)
 		descriptor = descriptor->next;
@@ -254,10 +287,10 @@ VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type,
 	if(descriptor->type != VM_TYPE_FREE){
 		//no need to release the spinlock because we are going to panic
 		kpanic(VMM_ERROR);
-		return NULL;
+		return invalid_handle;
 	}
 
-	VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor_start(descriptor, size);
+	VirtualMemoryDescriptor* cutted_descriptor = cut_descriptor_start(vmm, descriptor, size);
 	cutted_descriptor->type = type;
 	KASSERT((uint64_t)cutted_descriptor->start_vaddr % PAGE_SIZE == 0);
 	cutted_descriptor->lower_padding = lower_padding;
@@ -265,29 +298,25 @@ VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type,
 
 	void* vaddr = get_no_padding_start_addr(cutted_descriptor);
 	uint64_t no_padding_size = get_no_padding_size(cutted_descriptor);
-	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+	RELEASE_SPINLOCK_HARD(&vmm->lock);
 	for(uint64_t i = 0; i < no_padding_size; i+=PAGE_SIZE){
-		paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
+		paging_map(vmm->paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 		vaddr += PAGE_SIZE;
 	}
 
-	VMMCacheShootdownState state;
-	VMMCacheShootdownRange shootdown_range;
-	shootdown_range.addr_start = vaddr;
-	shootdown_range.size_in_pages = no_padding_size/PAGE_SIZE;
-	if(is_vmmcache_shootdown_subsystem_initialized()){
-		vmmcache_shootdown(shootdown_range, &state);
-		wait_for_vmmcache_shootdown_completition(&state);
-	}
+	shootdown(vaddr, no_padding_size);
 
-	return (VMemHandle)cutted_descriptor;
+	VMemHandle result = {cutted_descriptor, vmm};
+	return result;
 }
 
 bool deallocate_kernel_virtual_memory(VMemHandle handle){
-	ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
-	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
-	KASSERT(get_vmem_type(desc) != VM_TYPE_FREE);
-	KASSERT(get_vmem_type(desc) != VM_TYPE_IDENTITY_MAP_FREE);
+	VirtualMemoryManager* vmm = handle.vmm;
+	ACQUIRE_SPINLOCK_HARD(&vmm->lock);
+	KASSERT(vmm->kernel_mode);
+	VirtualMemoryDescriptor* desc = handle.vm_desc;
+	KASSERT(get_vmem_type(handle) != VM_TYPE_FREE);
+	KASSERT(get_vmem_type(handle) != VM_TYPE_IDENTITY_MAP_FREE);
 	//get the free type based on the vaddr
 	VirtualMemoryType free_type = desc->start_vaddr < IDENTITY_MAP_VMEM_END ? VM_TYPE_IDENTITY_MAP_FREE : VM_TYPE_FREE;
 
@@ -299,21 +328,14 @@ bool deallocate_kernel_virtual_memory(VMemHandle handle){
 		void* vaddr = get_no_padding_start_addr(desc);
 		for(uint64_t i = 0; i < get_no_padding_size(desc); i+=PAGE_SIZE){
 			if(desc->type == VM_TYPE_HEAP || desc->type == VM_TYPE_STACK || desc->type == VM_TYPE_GENERAL_USE){
-				PagingMapState state = get_physical_address(kernel_vmm.kernel_paging_structure, vaddr);
+				PagingMapState state = get_physical_address(vmm->paging_structure, vaddr);
 				if(state.mmap_present)
 					dealloc_frame(state.paddr);
 			}
-			invalidate_paging_mapping(kernel_vmm.kernel_paging_structure, vaddr);
+			invalidate_paging_mapping(vmm->paging_structure, vaddr);
 			vaddr += PAGE_SIZE;
 		}
-		VMMCacheShootdownState state;
-		VMMCacheShootdownRange shootdown_range;
-		shootdown_range.addr_start = vaddr;
-		shootdown_range.size_in_pages = get_no_padding_size(desc) /PAGE_SIZE;
-		if(is_vmmcache_shootdown_subsystem_initialized()){
-			vmmcache_shootdown(shootdown_range, &state);
-			wait_for_vmmcache_shootdown_completition(&state);
-		}
+		shootdown(vaddr, get_no_padding_size(desc));
 	}
 	
 	//set the range as a free one
@@ -350,11 +372,12 @@ bool deallocate_kernel_virtual_memory(VMemHandle handle){
 
 		//in theory it's not needed to refresh the head of the linked list
 	}
-	RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+	RELEASE_SPINLOCK_HARD(&vmm->lock);
 	return true;
 }
 
 bool _try_expand_vmem_top(VMemHandle handle, uint64_t size, bool use_spinlock){
+	VirtualMemoryManager* vmm = handle.vmm;
 	
 	//adjust size
 	if(size % PAGE_SIZE != 0)
@@ -362,13 +385,13 @@ bool _try_expand_vmem_top(VMemHandle handle, uint64_t size, bool use_spinlock){
 
 
 	//equivalent to 
-	//ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+	//ACQUIRE_SPINLOCK_HARD(&vmm->lock);
 	InterruptState lock_istate;
 	if(use_spinlock)
-		acquire_spinlock_hard(&kernel_vmm.lock, &lock_istate);
+		acquire_spinlock_hard(&vmm->lock, &lock_istate);
 
 
-	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+	VirtualMemoryDescriptor* desc = handle.vm_desc;
 
 	bool is_type_invalid = desc->type != VM_TYPE_HEAP && desc->type != VM_TYPE_STACK && desc->type != VM_TYPE_GENERAL_USE;
 	bool is_too_small = size > desc->upper_padding;
@@ -383,22 +406,15 @@ bool _try_expand_vmem_top(VMemHandle handle, uint64_t size, bool use_spinlock){
 		//set the new padding
 		desc->upper_padding -= size;
 		//equivalent to
-		//RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+		//RELEASE_SPINLOCK_HARD(&vmm->lock);
 		if(use_spinlock)
-			release_spinlock_hard(&kernel_vmm.lock, &lock_istate);
+			release_spinlock_hard(&vmm->lock, &lock_istate);
 		for(uint64_t i = 0; i < size; i+=PAGE_SIZE){
 			KASSERT(vaddr < desc_end_vaddr);
-			paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
+			paging_map(vmm->paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 			vaddr += PAGE_SIZE;
 		}
-		VMMCacheShootdownState state;
-		VMMCacheShootdownRange shootdown_range;
-		shootdown_range.addr_start = vaddr;
-		shootdown_range.size_in_pages = size/PAGE_SIZE;
-		if(is_vmmcache_shootdown_subsystem_initialized()){
-			vmmcache_shootdown(shootdown_range, &state);
-			wait_for_vmmcache_shootdown_completition(&state);
-		}
+		shootdown(vaddr, size);
 	}
 
 	return !not_expandable;
@@ -409,19 +425,20 @@ bool try_expand_vmem_top(VMemHandle handle, uint64_t size){
 }
 
 bool _try_expand_vmem_bottom(VMemHandle handle, uint64_t size, bool use_spinlock){
+	VirtualMemoryManager* vmm = handle.vmm;
 	
 	//adjust size
 	if(size % PAGE_SIZE != 0)
 		size += PAGE_SIZE - (size % PAGE_SIZE);
 
 	//equivalent to 
-	//ACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
+	//ACQUIRE_SPINLOCK_HARD(&vmm->lock);
 	InterruptState lock_istate;
 	if(use_spinlock)
-		acquire_spinlock_hard(&kernel_vmm.lock, &lock_istate);
+		acquire_spinlock_hard(&vmm->lock, &lock_istate);
 
 
-	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+	VirtualMemoryDescriptor* desc = handle.vm_desc;
 
 	bool is_type_invalid = desc->type != VM_TYPE_HEAP && desc->type != VM_TYPE_STACK && desc->type != VM_TYPE_GENERAL_USE;
 	bool is_too_small = size > desc->lower_padding;
@@ -435,23 +452,16 @@ bool _try_expand_vmem_bottom(VMemHandle handle, uint64_t size, bool use_spinlock
 		//set the new padding
 		desc->lower_padding -= size;
 		//equivalent to
-		//RELEASE_SPINLOCK_HARD(&kernel_vmm.lock);
+		//RELEASE_SPINLOCK_HARD(&vmm->lock);
 		if(use_spinlock)
-			release_spinlock_hard(&kernel_vmm.lock, &lock_istate);
+			release_spinlock_hard(&vmm->lock, &lock_istate);
 		for(uint64_t i = 0; i < size; i+=PAGE_SIZE){
 			KASSERT(vaddr >= desc_start_vaddr);
-			paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
+			paging_map(vmm->paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 			vaddr += PAGE_SIZE;
 		}
 
-		VMMCacheShootdownState state;
-		VMMCacheShootdownRange shootdown_range;
-		shootdown_range.addr_start = vaddr;
-		shootdown_range.size_in_pages = size/PAGE_SIZE;
-		if(is_vmmcache_shootdown_subsystem_initialized()){
-			vmmcache_shootdown(shootdown_range, &state);
-			wait_for_vmmcache_shootdown_completition(&state);
-		}
+		shootdown(vaddr, size);
 	}
 	return !not_expandable;
 }
@@ -461,20 +471,20 @@ bool try_expand_vmem_bottom(VMemHandle handle, uint64_t size){
 }
 
 uint64_t get_vmem_size(VMemHandle handle){
-	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+	VirtualMemoryDescriptor* desc = handle.vm_desc;
 	return get_no_padding_size(desc);
 }
 void* get_vmem_addr(VMemHandle handle){
-	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+	VirtualMemoryDescriptor* desc = handle.vm_desc;
 	return get_no_padding_start_addr(desc);
 }
 
 VirtualMemoryType get_vmem_type(VMemHandle handle){
-	VirtualMemoryDescriptor* desc = (VirtualMemoryDescriptor*)handle;
+	VirtualMemoryDescriptor* desc = handle.vm_desc;
 	return desc->type;
 }
 
-static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descriptor, void* start, uint64_t size){
+static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryManager* vmm, VirtualMemoryDescriptor* descriptor, void* start, uint64_t size){
 	KASSERT(descriptor->type == VM_TYPE_FREE || descriptor->type == VM_TYPE_IDENTITY_MAP_FREE);
 	KASSERT(descriptor->size_bytes % PAGE_SIZE == 0);
 	KASSERT(size % PAGE_SIZE == 0);
@@ -484,7 +494,7 @@ static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descript
 	if(descriptor->start_vaddr == start && descriptor->size_bytes == size){
 		return descriptor;
 	}else if(descriptor->start_vaddr == start){
-		return cut_descriptor_start(descriptor, size);
+		return cut_descriptor_start(vmm, descriptor, size);
 	}else if(descriptor->start_vaddr + descriptor->size_bytes == start + size){
 		VirtualMemoryDescriptor *new_descriptor = allocate_vmem_descriptor();
 
@@ -509,7 +519,7 @@ static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descript
 			old_next->prev = new_descriptor;
 
 		KASSERT(descriptor->start_vaddr+descriptor->size_bytes == new_descriptor->start_vaddr);
-		update_head();
+		update_head(vmm);
 		return new_descriptor;
 	}else{
 		KASSERT(start > descriptor->start_vaddr);
@@ -546,14 +556,14 @@ static VirtualMemoryDescriptor* cut_descriptor(VirtualMemoryDescriptor* descript
 		next_descriptor->size_bytes = (uint64_t)old_start_vaddr+old_size - ((uint64_t)start + size);
 
 		KASSERT(old_start_vaddr+old_size == next_descriptor->start_vaddr+next_descriptor->size_bytes);
-		update_head();
+		update_head(vmm);
 		return mid_descriptor;
 	}
 	KASSERT(false);//should never be here
 	return NULL;
 }
 
-static VirtualMemoryDescriptor* cut_descriptor_start(VirtualMemoryDescriptor* descriptor, uint64_t size){
+static VirtualMemoryDescriptor* cut_descriptor_start(VirtualMemoryManager* vmm, VirtualMemoryDescriptor* descriptor, uint64_t size){
 	KASSERT(descriptor->type == VM_TYPE_FREE || descriptor->type == VM_TYPE_IDENTITY_MAP_FREE);
 	KASSERT(descriptor->size_bytes >= size)
 	KASSERT(descriptor->size_bytes % PAGE_SIZE == 0);
@@ -585,14 +595,14 @@ static VirtualMemoryDescriptor* cut_descriptor_start(VirtualMemoryDescriptor* de
 	if(old_next != NULL)
 		old_next->prev = new_descriptor;
 	KASSERT(descriptor->start_vaddr+descriptor->size_bytes == new_descriptor->start_vaddr);
-	update_head();
+	update_head(vmm);
 
 	return descriptor;
 }
 
-static void update_head(){
-	while(kernel_vmm.vm_list_head->prev != NULL)
-		kernel_vmm.vm_list_head = kernel_vmm.vm_list_head->prev;
+static void update_head(VirtualMemoryManager* vmm){
+	while(vmm->vm_list_head->prev != NULL)
+		vmm->vm_list_head = vmm->vm_list_head->prev;
 }
 
 static uint64_t get_no_padding_size(const VirtualMemoryDescriptor *d){
@@ -603,9 +613,10 @@ static void* get_no_padding_start_addr(const VirtualMemoryDescriptor *d){
 	return d->start_vaddr + d->lower_padding;
 }
 
-VMemHandle get_vmem_from_address(void* addr){
-	VirtualMemoryDescriptor *descriptor = kernel_vmm.vm_list_head;
+VMemHandle get_vmem_from_address(VirtualMemoryManager* vmm, void* addr){
+	VirtualMemoryDescriptor *descriptor = vmm->vm_list_head;
 	uint64_t iaddr = (uint64_t)addr;
+	const VMemHandle invalid_handle = {NULL, NULL};
 
 	while(descriptor->next != NULL){
 		if(iaddr >= (uint64_t)descriptor->start_vaddr && iaddr < (uint64_t)(descriptor->start_vaddr)+(uint64_t)(descriptor->size_bytes))
@@ -613,10 +624,11 @@ VMemHandle get_vmem_from_address(void* addr){
 		descriptor = descriptor->next;
 	}
 	if(addr >= descriptor->start_vaddr + descriptor->size_bytes)
-		return NULL;
+		return invalid_handle;
 	if(addr < descriptor->start_vaddr)
-		return NULL;
-	return descriptor;
+		return invalid_handle;
+	VMemHandle result = {descriptor, vmm};
+	return result;
 }
 
 static const char* get_vm_type_string(VirtualMemoryType vm_type){
@@ -647,14 +659,14 @@ static const char* get_vm_type_string(VirtualMemoryType vm_type){
 }
 
 //TODO: make debug print thread safe
-void debug_print_kernel_vmm(){
+void debug_print_vmm(VirtualMemoryManager* vmm){
 	print("\n-----kernel VMM state start-----\n");
 	print("kernel paging structure: ");
-	print_uint64_hex((uint64_t)kernel_vmm.kernel_paging_structure);
+	print_uint64_hex((uint64_t)vmm->paging_structure);
 	print("\n");
 	print("virtual adresses:\n");
 
-	for(VirtualMemoryDescriptor* d = kernel_vmm.vm_list_head; d != NULL; d = d->next){
+	for(VirtualMemoryDescriptor* d = vmm->vm_list_head; d != NULL; d = d->next){
 		print_uint64_hex((uint64_t)d->start_vaddr);
 		print(" / ");
 		print_uint64_hex((uint64_t)d->start_vaddr + d->size_bytes);
@@ -668,7 +680,7 @@ void debug_print_kernel_vmm(){
 	print("-----kernel VMM state end-----\n");
 }
 
-void print_page_fault_error(PageFaultInfo page_fault_info){
+void print_page_fault_error(VirtualMemoryManager* vmm, PageFaultInfo page_fault_info){
 	print("[PAGE FAULT] ");
 	uint64_t error = page_fault_info.page_error;
 
@@ -699,7 +711,7 @@ void print_page_fault_error(PageFaultInfo page_fault_info){
 		print("[PAGE FAULT] NULL PAGE POINTER DEREFERENCE\n");
 
 	print("[PAGE FAULT VMEM] ");
-	if(page_fault_info.fault_vmem == NULL){
+	if(is_vmemhandle_invalid(page_fault_info.fault_vmem)){
 		print("NULL vmem (not allocated virtual memory)");
 	}else{
 		print(get_vm_type_string(get_vmem_type(page_fault_info.fault_vmem)));
@@ -712,8 +724,8 @@ void print_page_fault_error(PageFaultInfo page_fault_info){
 }
 
 //return true if the page fault is solved
-bool page_fault_check_identity_map_load(PageFaultInfo pf_info){
-	if(pf_info.fault_vmem == NULL)
+bool page_fault_check_identity_map_load(VirtualMemoryManager* vmm, PageFaultInfo pf_info){
+	if(is_vmemhandle_invalid(pf_info.fault_vmem))
 		return false;
 
 	VirtualMemoryType type = get_vmem_type(pf_info.fault_vmem);
@@ -727,7 +739,7 @@ bool page_fault_check_identity_map_load(PageFaultInfo pf_info){
 		void* to_map = (void*)pf_info.fault_address - PAGE_FAULT_ADDITIONAL_PAGE_LOAD/2;
 		void* last_page = to_map + (1+PAGE_FAULT_ADDITIONAL_PAGE_LOAD)*PAGE_SIZE;
 		for(; to_map < last_page; to_map+=PAGE_SIZE){
-			paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
+			paging_map(vmm->paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 		}
 		VMMCacheShootdownState state;
 		VMMCacheShootdownRange shootdown_range;
@@ -744,21 +756,21 @@ bool page_fault_check_identity_map_load(PageFaultInfo pf_info){
 }
 
 //return true if the page fault is solved
-bool page_fault_check_stack_overflow(PageFaultInfo pf_info){
-	if(pf_info.fault_vmem == NULL)
+bool page_fault_check_stack_overflow(VirtualMemoryManager* vmm, PageFaultInfo pf_info){
+	if(is_vmemhandle_invalid(pf_info.fault_vmem))
 		return false;
 
 	if(get_vmem_type(pf_info.fault_vmem) == VM_TYPE_STACK && pf_info.fault_address < get_vmem_addr(pf_info.fault_vmem) && pf_info.page_not_present){
 		if(!is_kio_initialized())
 			kpanic(UNRECOVERABLE_PAGE_FAULT);
-		print_page_fault_error(pf_info);
+		print_page_fault_error(vmm, pf_info);
 		print("[PAGE FAULT] POSSIBLE STACK OVERFLOW\n");
 		//possible stack overflow, try to expand
 		//only if we do not consume the security minimum stack padding
 		//used to check for stack overflows
 		//TODO: add the get_lower_padding and get_upper_padding function and
 		//use it in this function
-		VirtualMemoryDescriptor* desc = pf_info.fault_vmem;
+		VirtualMemoryDescriptor* desc = pf_info.fault_vmem.vm_desc;
 		int64_t remaining_padding = (int64_t)desc->lower_padding - KERNEL_STACK_EXPANSION_STEP;
 		if(remaining_padding >= MINIMUM_STACK_PADDING){
 			if(_try_expand_vmem_bottom(pf_info.fault_vmem, KERNEL_STACK_EXPANSION_STEP, false)){
@@ -779,6 +791,13 @@ struct PageFaultState{
 void page_fault(InterruptInfo info){
 	uint64_t fault_address;
 	asm("mov %%cr2, %0" : "=r"(fault_address) : : "cc");
+	VirtualMemoryManager* fault_vmm = NULL;
+
+	//TODO: check if the interrupted thread is kernel mode via rflags
+	if(is_kernel_virtual_memory((void*)fault_address))
+		fault_vmm = get_kernel_VMM_from_kernel_data();
+	else
+		kpanic_with_msg(UNRECOVERABLE_PAGE_FAULT, "user page fault?, it's a TODO");
 
 #ifdef FREEZE_ON_PAGE_FAULT
 	freeze_cpu();
@@ -797,26 +816,26 @@ void page_fault(InterruptInfo info){
 	release_spinlock(&page_fault_state.lock);
 	
 	//the interrupts are already disabled, no need for an hard lock
-	acquire_spinlock(&kernel_vmm.lock);
+	acquire_spinlock(&fault_vmm->lock);
 
 	PageFaultInfo page_fault_info;
 	page_fault_info.interrupt_info = info;
 	page_fault_info.page_error = info.error;
 	page_fault_info.fault_address = (void*)fault_address;
-	page_fault_info.fault_vmem = get_vmem_from_address((void*)fault_address);
+	page_fault_info.fault_vmem = get_vmem_from_address(fault_vmm, (void*)fault_address);
 	page_fault_info.page_not_present = !(info.error & 1);
 
-	bool page_fault_solved = page_fault_check_identity_map_load(page_fault_info);
+	bool page_fault_solved = page_fault_check_identity_map_load(fault_vmm, page_fault_info);
 	if(!page_fault_solved)
-		page_fault_solved = page_fault_check_stack_overflow(page_fault_info);
+		page_fault_solved = page_fault_check_stack_overflow(fault_vmm, page_fault_info);
 		
 	if(!page_fault_solved){
-		print_page_fault_error(page_fault_info);
+		print_page_fault_error(fault_vmm, page_fault_info);
 		printf("[PAGE FAULT] CANNOT RECOVER THE PAGE FAULT\n");
 		kpanic(UNRECOVERABLE_PAGE_FAULT);
 	}
 
-	release_spinlock(&kernel_vmm.lock);
+	release_spinlock(&fault_vmm->lock);
 
 	acquire_spinlock(&page_fault_state.lock);
 	page_fault_state.servicing_page_fault = false;

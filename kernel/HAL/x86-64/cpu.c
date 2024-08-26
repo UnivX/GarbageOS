@@ -1,4 +1,5 @@
 #include "cpu.h"
+#include "../../kernel_data.h"
 
 extern uint64_t isr_stub_table[];
 extern uint64_t isr_stub_table_end[];
@@ -18,7 +19,8 @@ void allocate_global_cpu_state_memory(uint64_t number_of_logical_cores){
 
 	//alloc the virtual memory
 	//use one page on the upper and lower bound of memory to check for out of memory access
-	global_cpu_state.cpu_structures_vmem = allocate_kernel_virtual_memory(cpu_structures_vmm_size, VM_TYPE_GENERAL_USE, PAGE_SIZE, PAGE_SIZE);
+	VirtualMemoryManager *kernel_vmm = get_kernel_VMM_from_kernel_data();
+	global_cpu_state.cpu_structures_vmem = allocate_kernel_virtual_memory(kernel_vmm, cpu_structures_vmm_size, VM_TYPE_GENERAL_USE, PAGE_SIZE, PAGE_SIZE);
 	
 	global_cpu_state.gdt = (GDT*)get_vmem_addr(global_cpu_state.cpu_structures_vmem);
 	global_cpu_state.gdt_entry_count = gdt_entry_count;
@@ -74,6 +76,8 @@ void setup_idt(){
 }
 
 void make_CPU_states(uint64_t number_of_logical_cores){
+	VirtualMemoryManager *kernel_vmm = get_kernel_VMM_from_kernel_data();
+
 	//at the moment we use only one physical thread
 	global_cpu_state.number_of_logical_cores = number_of_logical_cores;
 	allocate_global_cpu_state_memory(number_of_logical_cores);
@@ -84,9 +88,9 @@ void make_CPU_states(uint64_t number_of_logical_cores){
 	//set up the local cpu data
 	for(uint64_t i = 0; i < number_of_logical_cores; i++){
 		//alloc exception and page fault stacks
-		global_cpu_state.local_cpu_states[i].exception_stack = allocate_kernel_virtual_memory(EXCEPTION_STACK_SIZE,
+		global_cpu_state.local_cpu_states[i].exception_stack = allocate_kernel_virtual_memory(kernel_vmm, EXCEPTION_STACK_SIZE,
 				VM_TYPE_STACK, CRITICAL_STACK_PADDING, CRITICAL_STACK_PADDING);
-		global_cpu_state.local_cpu_states[i].page_fault_stack = allocate_kernel_virtual_memory(PAGE_FAULT_STACK_SIZE,
+		global_cpu_state.local_cpu_states[i].page_fault_stack = allocate_kernel_virtual_memory(kernel_vmm, PAGE_FAULT_STACK_SIZE,
 				VM_TYPE_STACK, CRITICAL_STACK_PADDING, CRITICAL_STACK_PADDING);
 
 		TSS* local_tss = &global_cpu_state.local_cpu_states[i].tss;

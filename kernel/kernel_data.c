@@ -11,6 +11,7 @@ typedef struct KernelData{
 	spinlock lock;
 	CPUID cpuid_to_allocate;
 	PIT pit;
+	VirtualMemoryManager vmm;
 } KernelData;
 
 KernelData kernel_data;
@@ -102,4 +103,10 @@ void init_kernel_data_PIT(uint64_t target_frequency_hz){
 
 PIT* get_PIT_from_kernel_data(){
 	return &kernel_data.pit;
+}
+void initialize_kernel_data_kernel_VMM(void* paging_structure){
+	initialize_kernel_VMM(&kernel_data.vmm, paging_structure);
+}
+VirtualMemoryManager* get_kernel_VMM_from_kernel_data(){
+	return &kernel_data.vmm;
 }

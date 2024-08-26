@@ -37,7 +37,19 @@ typedef struct VirtualMemoryDescriptor{
 	bool is_from_heap;//is this from the heap allocator or from the bump allocator?
 } VirtualMemoryDescriptor;
 
-typedef VirtualMemoryDescriptor* VMemHandle;
+typedef struct VirtualMemoryManager{
+	VirtualMemoryDescriptor* vm_list_head;
+	void* paging_structure;
+	bool kernel_mode;
+	spinlock lock;
+} VirtualMemoryManager;
+
+typedef struct VMemHandle{
+	VirtualMemoryDescriptor* vm_desc;
+	VirtualMemoryManager* vmm;
+} VMemHandle;
+
+bool is_vmemhandle_invalid(VMemHandle h);
 
 typedef struct PageFaultInfo{
 	uint64_t page_error;
@@ -48,23 +60,18 @@ typedef struct PageFaultInfo{
 } PageFaultInfo;
 
 //TODO: is_kernel_virtual_memory
-bool is_kernel_virtual_memory(VirtualMemoryDescriptor descriptor);
+bool is_kernel_virtual_memory(void* vaddr);
 
-typedef struct VirtualMemoryManager{
-	VirtualMemoryDescriptor* vm_list_head;
-	void* kernel_paging_structure;
-	spinlock lock;
-} VirtualMemoryManager;
+void initialize_kernel_VMM(VirtualMemoryManager* vmm, void* paging_structure);
+void initialize_user_VMM(VirtualMemoryManager* vmm, void* paging_structure);
 
-
-void initialize_kernel_VMM(void* paging_structure);
-const void* get_kernel_VMM_paging_structure();//sync
+const void* get_VMM_paging_structure(VirtualMemoryManager* vmm);//sync
 //may return NULL on failure
-VMemHandle identity_map(void* paddr, uint64_t size);//sync
-void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle);//sync
-VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags);
-VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding);
-VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags);
+VMemHandle identity_map(VirtualMemoryManager* vmm, void* paddr, uint64_t size);//sync
+void load_identity_map_pages(VirtualMemoryManager* vmm, void* paddr, uint64_t size, VMemHandle handle);//sync
+VMemHandle memory_map(VirtualMemoryManager* vmm, void* paddr, uint64_t size, uint16_t page_flags);
+VMemHandle allocate_kernel_virtual_memory(VirtualMemoryManager* vmm, uint64_t size, VirtualMemoryType type, uint64_t upper_padding, uint64_t lower_padding);
+VMemHandle copy_memory_mapping_from_paging_structure(VirtualMemoryManager* vmm, void* src_paging_structure, void* vaddr, uint64_t size, uint16_t page_flags);
 
 /*
 this function is available only for these Virtual Memory types
@@ -87,8 +94,8 @@ uint64_t get_vmem_size(VMemHandle handle);
 void* get_vmem_addr(VMemHandle handle);
 VirtualMemoryType get_vmem_type(VMemHandle handle);
 //if page_flags == COPY_FLAGS_ON_MMAP_COPY then the flags are simply copied
-void debug_print_kernel_vmm();
+void debug_print_vmm(VirtualMemoryManager* vmm);
 //return the new cutted descriptor
 
 //also if it's inside the padding
-VMemHandle getHandleFromAddress(void* addr);
+VMemHandle getHandleFromAddress(VirtualMemoryManager* vmm, void* addr);

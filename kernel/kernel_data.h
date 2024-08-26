@@ -21,3 +21,5 @@ CPUID get_cpu_id_from_apic_id(uint32_t apic_id);
 
 void init_kernel_data_PIT(uint64_t target_frequency_hz);
 PIT* get_PIT_from_kernel_data();
+void initialize_kernel_data_kernel_VMM(void* paging_structure);
+VirtualMemoryManager* get_kernel_VMM_from_kernel_data();

@@ -2,6 +2,7 @@
 #include "apic.h"
 #include "../mem/heap.h"
 #include "../kio.h"
+#include "../kernel_data.h"
 
 static IOAPICSubsystemData ioapic_gdata = {NULL, 0, NULL, 0};
 static spinlock ioapic_lock;
@@ -91,8 +92,9 @@ bool init_ioapics(){
 bool init_single_ioapic(IOAPIC *ioapic){
 	KASSERT(ioapic != NULL);
 	//memory map the ioapic register to an uncacheable page(4K)
-	ioapic->ioapic_mmap = memory_map(ioapic->physical_base_address, PAGE_SIZE, PAGE_WRITABLE | PAGE_CACHE_DISABLE);
-	if(ioapic->ioapic_mmap == NULL)
+	VirtualMemoryManager* kernel_vmm = get_kernel_VMM_from_kernel_data();
+	ioapic->ioapic_mmap = memory_map(kernel_vmm, ioapic->physical_base_address, PAGE_SIZE, PAGE_WRITABLE | PAGE_CACHE_DISABLE);
+	if(is_vmemhandle_invalid(ioapic->ioapic_mmap))
 		return false;
 	ioapic->ioapic_id = (read_32_ioapic_register(ioapic, IOAPICID_OFFSET) >> 24) & 0x0f;
 

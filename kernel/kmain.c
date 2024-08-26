@@ -130,7 +130,7 @@ uint64_t kmain(){
 	kio_flush();
 	PIT_wait_ms(pit, 2000);
 
-	debug_print_kernel_vmm();
+	debug_print_vmm(get_kernel_VMM_from_kernel_data());
 
 	print("\nSleeping 2s\n");
 	kio_flush();
@@ -152,7 +152,8 @@ uint64_t kmain(){
 	print(" MiB\n");
 
 	print("kernel paging memory overhead: ");
-	print_uint64_dec(get_paging_mem_overhead((void*)get_kernel_VMM_paging_structure()) / MB);
+	const void* kpaging_struct = get_VMM_paging_structure(get_kernel_VMM_from_kernel_data());
+	print_uint64_dec(get_paging_mem_overhead((void*)kpaging_struct) / MB);
 	print(" MiB\n");
 
 	print("kernel frame allocator overhead: ");
@@ -204,7 +205,8 @@ uint64_t kmain(){
 	kio_flush();
 
 	printf("allocating kernel vmem\n");
-	VMemHandle thandle =allocate_kernel_virtual_memory(PAGE_SIZE*64, VM_TYPE_GENERAL_USE, 4*PAGE_SIZE, 4*PAGE_SIZE);
+	VirtualMemoryManager* kernel_vmm = get_kernel_VMM_from_kernel_data();
+	VMemHandle thandle = allocate_kernel_virtual_memory(kernel_vmm, PAGE_SIZE*64, VM_TYPE_GENERAL_USE, 4*PAGE_SIZE, 4*PAGE_SIZE);
 	printf("deallocating kernel vmem\n");
 	deallocate_kernel_virtual_memory(thandle);
 	printf("kernel vmem test done\n");

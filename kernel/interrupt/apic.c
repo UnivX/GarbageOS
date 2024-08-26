@@ -4,9 +4,10 @@
 #include "interrupts.h"
 #include "../hal.h"
 #include "../kdefs.h"
+#include "../kernel_data.h"
 #include "../util/sync_types.h"
 
-static LAPICSubsystemData lapic_gdata = {NULL, 0, NULL, NULL};
+static LAPICSubsystemData lapic_gdata = {NULL, 0, NULL, {NULL, NULL}};
 
 //check if it's the deiscrete apic chip(82489DX)
 static bool is_lapic_discrete_82489DX();
@@ -118,7 +119,8 @@ bool init_apic_subsystem(){
 	fill_apic_array(madt);
 
 	KASSERT((uint64_t)lapic_gdata.lapic_base_address % PAGE_SIZE == 0);
-	lapic_gdata.register_space_mapping = memory_map((void*)lapic_gdata.lapic_base_address, APIC_REGISTER_SPACE_SIZE, PAGE_WRITABLE | PAGE_CACHE_DISABLE);
+	VirtualMemoryManager* kernel_vmm = get_kernel_VMM_from_kernel_data();
+	lapic_gdata.register_space_mapping = memory_map(kernel_vmm, (void*)lapic_gdata.lapic_base_address, APIC_REGISTER_SPACE_SIZE, PAGE_WRITABLE | PAGE_CACHE_DISABLE);
 
 	install_interrupt_handler(APIC_ERROR_VECTOR, apic_error_interrupt_handler);
 
@@ -126,7 +128,7 @@ bool init_apic_subsystem(){
 }
 
 bool is_local_apic_initialized(){
-	if(lapic_gdata.register_space_mapping == NULL)
+	if(is_vmemhandle_invalid(lapic_gdata.register_space_mapping))
 		return false;
 	uint32_t lapic_id = get_logical_core_lapic_id();
 	LocalAPIC* lapic_data = get_lapic_from_id(lapic_id);
@@ -135,7 +137,7 @@ bool is_local_apic_initialized(){
 }
 
 void* get_register_space_start_addr(){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	return get_vmem_addr(lapic_gdata.register_space_mapping);
 }
 
@@ -274,7 +276,7 @@ bool init_local_apic(){
 
 //NOT FOR NMI, SMI, INIT, ExtInt, SIPI, only fixed interrupt
 void send_lapic_EOI(){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	write_32_lapic_register(APIC_REG_OFFSET_EOI, 0);
 }
 
@@ -292,14 +294,14 @@ uint64_t make_interrupt_command(uint8_t destination_id, APICDestinationShorthand
 }
 
 bool is_IPI_sending_complete(){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	const uint64_t delivery_status_flag = (1<<12);
 	return (read_64_lapic_register(APIC_REG_OFFSET_INTERRUPT_COMMAND_LOW) & delivery_status_flag) == 0;
 }
 
 //this function waits for the end of the sending of the IPI
 void wait_and_write_interrupt_command_register(uint64_t ICR){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	bool write_done = false;
 	while(!write_done){
 		//make it ininterruptible so we do not have race condition
@@ -315,55 +317,55 @@ void wait_and_write_interrupt_command_register(uint64_t ICR){
 
 void send_IPI_by_destination_shorthand(APICDestinationShorthand dest_sh, uint8_t interrupt_vector){
 	KASSERT(dest_sh != APIC_DESTSH_NO_SH);
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	uint64_t ICR = make_interrupt_command(0xff, dest_sh, 0, 1, 0, APIC_DEL_MODE_FIXED, interrupt_vector);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_IPI_by_lapic_id(uint32_t lapic_id_target, uint8_t interrupt_vector){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	uint64_t ICR = make_interrupt_command(lapic_id_target, APIC_DESTSH_NO_SH, 0, 1, 0, APIC_DEL_MODE_FIXED, interrupt_vector);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_IPI_INIT_by_lapic_id(uint32_t lapic_id_target){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	uint64_t ICR = make_interrupt_command(lapic_id_target, APIC_DESTSH_NO_SH, 0, 1, 0, APIC_DEL_MODE_INIT, 0);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_IPI_INIT_to_all_excluding_self(){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	uint64_t ICR = make_interrupt_command(0, APIC_DESTSH_ALL_EXCLUDING_SELF, 0, 1, 0, APIC_DEL_MODE_INIT, 0);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_IPI_INIT_deassert(){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	uint64_t ICR = make_interrupt_command(0, APIC_DESTSH_ALL_INCLUDING_SELF, 1, 0, 0, APIC_DEL_MODE_INIT, 0);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_IPI_INIT_deassert_by_lapic_id(uint32_t apic_id){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	uint64_t ICR = make_interrupt_command(apic_id, APIC_DESTSH_NO_SH, 1, 0, 0, APIC_DEL_MODE_INIT, 0);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_startup_IPI(uint32_t lapic_id_target, uint8_t interrupt_vector){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	uint64_t ICR = make_interrupt_command(lapic_id_target, APIC_DESTSH_NO_SH, 0, 1, 0, APIC_DEL_MODE_START_UP, interrupt_vector);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 void send_startup_IPI_to_all_excluding_self(uint8_t interrupt_vector){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	uint64_t ICR = make_interrupt_command(0, APIC_DESTSH_ALL_EXCLUDING_SELF, 0, 1, 0, APIC_DEL_MODE_START_UP, interrupt_vector);
 	wait_and_write_interrupt_command_register(ICR);
 }
 
 bool is_interrupt_lapic_generated(uint8_t interrupt_vector){
-	KASSERT(lapic_gdata.register_space_mapping != NULL);
+	KASSERT(!is_vmemhandle_invalid(lapic_gdata.register_space_mapping));
 	//the ISR is a 256 bit wide register
 	//starting at APIC_REG_OFFSET_IN_SERVICE_FIRST
 	//each dword is then at a register offseted by the previous by +0x10

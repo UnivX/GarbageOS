@@ -1,6 +1,7 @@
 #include "../../hal.h"
 #include "../../kio.h"
 #include "../../mem/vmm.h"
+#include "../../kernel_data.h"
 
 //get the RSDP on bios systems
 /*
@@ -51,7 +52,8 @@ void* acpi_RSDP(){
 	//get readonly memory first KB of EBDA
 	//the EBDA has a pointer at address 0x40E
 	//we need to do a memory map because the first page isn't accessible(it's the NULL ptr page)
-	VMemHandle first_page = memory_map((void*)0, PAGE_SIZE, PAGE_PRESENT);//readonly
+	VirtualMemoryManager* kernel_vmm = get_kernel_VMM_from_kernel_data();
+	VMemHandle first_page = memory_map(kernel_vmm, (void*)0, PAGE_SIZE, PAGE_PRESENT);//readonly
 	volatile uint16_t EBDA_segment = *((volatile uint16_t*)(get_vmem_addr(first_page) + 0x40E));
 	deallocate_kernel_virtual_memory(first_page);
 	void* EBDA_addr = (void*)(((uint64_t)EBDA_segment*0x10) & 0x000FFFFF);

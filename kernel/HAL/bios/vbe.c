@@ -1,13 +1,14 @@
 #include <stddef.h>
 #include "vbe.h"
+#include "../../kernel_data.h"
 #include "../../mem/vmm.h"
 #include "../../hal.h"
 #include "../../kdefs.h"
 
-VbeFrameBuffer global_frame_buffer = {NULL, NULL, NULL, NULL};
+VbeFrameBuffer global_frame_buffer = {NULL, NULL, NULL, {NULL, NULL}};
 
 VbeFrameBuffer init_frame_buffer(){
-	VbeFrameBuffer invalid_buffer = {NULL, NULL, NULL, NULL};
+	VbeFrameBuffer invalid_buffer = {NULL, NULL, NULL, {NULL, NULL}};
 	VbeFrameBuffer framebuffer;
 	framebuffer.vbe_mode_info =  get_bootloader_data()->vbe_mode_info;
 	framebuffer.paddr = (void*)((uint64_t)framebuffer.vbe_mode_info->framebuffer);
@@ -17,7 +18,8 @@ VbeFrameBuffer init_frame_buffer(){
 		bytes_count += PAGE_SIZE - (bytes_count%PAGE_SIZE);
 	//uint64_t pages_count = bytes_count/PAGE_SIZE + (bytes_count%PAGE_SIZE != 0);//round up
 
-	framebuffer.framebuffer_mapping = memory_map(framebuffer.paddr, bytes_count, PAGE_WRITABLE | PAGE_PRESENT | PAGE_WRITE_COMBINING);
+	VirtualMemoryManager *kernel_vmm = get_kernel_VMM_from_kernel_data();
+	framebuffer.framebuffer_mapping = memory_map(kernel_vmm, framebuffer.paddr, bytes_count, PAGE_WRITABLE | PAGE_PRESENT | PAGE_WRITE_COMBINING);
 	framebuffer.vaddr = get_vmem_addr(framebuffer.framebuffer_mapping);
 	if(framebuffer.vaddr == NULL)
 		return invalid_buffer;

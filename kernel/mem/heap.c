@@ -1,4 +1,5 @@
 #include "heap.h"
+#include "../kernel_data.h"
 
 static Heap kheap;
 
@@ -440,7 +441,8 @@ void kheap_init(){
 	//assert that the HEAP minimum alignment is a divisor of PAGE_SIZE
 	init_spinlock(&kheap_lock);
 	KASSERT(PAGE_SIZE % HEAP_ALIGNMENT == 0);
-	VMemHandle kheap_mem = allocate_kernel_virtual_memory(KERNEL_HEAP_SIZE, VM_TYPE_HEAP, KERNEL_HEAP_VMM_MAX_SIZE, KERNEL_HEAP_VMM_LOW_SECURITY_PADDING);
+	VirtualMemoryManager* kernel_vmm = get_kernel_VMM_from_kernel_data();
+	VMemHandle kheap_mem = allocate_kernel_virtual_memory(kernel_vmm, KERNEL_HEAP_SIZE, VM_TYPE_HEAP, KERNEL_HEAP_VMM_MAX_SIZE, KERNEL_HEAP_VMM_LOW_SECURITY_PADDING);
 	initialize_heap(&kheap, kheap_mem);
 	kheap_initialized = true;
 }
