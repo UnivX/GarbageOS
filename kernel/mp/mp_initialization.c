@@ -11,7 +11,7 @@
 #include "../interrupt/interrupts.h"
 
 static struct MPGlobalData{
-	uint64_t initialized_APs;
+	atomic_uint initialized_APs;
 	MPInitializationData init_data;
 	APKernelData* APs_kernel_data;
 	spinlock lock;
@@ -21,7 +21,6 @@ void AP_entry_point(void* loaded_stack){
 	VMemHandle stack_vmem = NULL;
 
 	acquire_spinlock(&mp_gdata.lock);
-	mp_gdata.initialized_APs++;
 	for(uint64_t i = 0; i < mp_gdata.init_data.APs_count; i++){
 		VMemHandle vmem = mp_gdata.APs_kernel_data[i].kernel_stack;
 		if(get_vmem_addr(vmem)+get_vmem_size(vmem) == loaded_stack){
@@ -48,21 +47,26 @@ void AP_entry_point(void* loaded_stack){
 	set_local_kernel_data(cpuid, local_data);
 
 	activate_this_cpu_vmmcache_shootdown();
+#ifdef DEBUG
 	printf("cpu %u64 started, loaded stack : %h64\n", (uint64_t)cpuid, (uint64_t)loaded_stack);
+#endif
 	kio_flush();
 	enable_interrupts();
+
+	acquire_spinlock(&mp_gdata.lock);
+	atomic_fetch_add(&mp_gdata.initialized_APs, 1);//increment
+	release_spinlock(&mp_gdata.lock);
 
 	while(1){
 		halt();
 	}
 }
 
-void init_APs(PIT* pit){
-	init_spinlock(&mp_gdata.lock);
-	mp_gdata.initialized_APs = 0;
+MPInitError unsync_set_up_mp_global_data(){
+	atomic_store(&mp_gdata.initialized_APs, 0);
 	mp_gdata.init_data.APs_count = get_number_of_usable_logical_cores()-1;
 	if(mp_gdata.init_data.APs_count == 0)
-		return;
+		return ERROR_MP_OK;
 	mp_gdata.init_data.stacks_top = kmalloc(sizeof(void*)*mp_gdata.init_data.APs_count);
 	mp_gdata.init_data.ap_entry_point = AP_entry_point;
 
@@ -73,6 +77,21 @@ void init_APs(PIT* pit){
 		mp_gdata.APs_kernel_data[i].kernel_stack = kstack;
 		mp_gdata.init_data.stacks_top[i] = get_vmem_addr(kstack)+get_vmem_size(kstack);//stack_top
 	}
+	return ERROR_MP_OK;
+}
+
+MPInitError init_APs(PIT* pit){
+	//no APs to startup
+	if(get_number_of_usable_logical_cores() == 1)
+		return ERROR_MP_OK;
+
+	init_spinlock(&mp_gdata.lock);
+
+	MPInitError mp_gdata_setup_err = unsync_set_up_mp_global_data();
+	if(mp_gdata_setup_err != ERROR_MP_OK)
+		return mp_gdata_setup_err;
+
+	//generate the trampoline code to jump to the init AP function
 	volatile void* startup_frame = create_mp_init_routine_in_RAM(get_kernel_VMM_paging_structure(), (void*)&mp_gdata.init_data);
 	uint8_t vector_addr = ((uint64_t)startup_frame) >> 12;
 
@@ -83,28 +102,44 @@ void init_APs(PIT* pit){
 	if(array_result < 0 || (uint64_t)array_result != number_of_logical_cores)
 		kpanic(GENERIC_ERROR);
 
+	//DO THE INIT SIPI SIPI initialization
 	send_IPI_INIT_to_all_excluding_self();
 	PIT_wait_ms(pit, 10);
 	uint32_t BSP_lapic_id = get_logical_core_lapic_id();
 	for(uint64_t i = 0; i < number_of_logical_cores; i++){
 		if(lapic_ids[i] == BSP_lapic_id)
 			continue;
+#ifdef DEBUG
 		printf("starting %u64\n", (uint64_t)lapic_ids[i]);
+#endif
 		kio_flush();
 		send_startup_IPI(lapic_ids[i], vector_addr);
 		PIT_wait_us(pit, 200);
 		send_startup_IPI(lapic_ids[i], vector_addr);
 		PIT_wait_us(pit, 200);
 	}
-	PIT_wait_ms(pit, 1000);
 
-	/*
-	send_IPI_INIT_to_all_excluding_self();
-	PIT_wait_ms(pit, 10);
-	send_startup_IPI_to_all_excluding_self(vector_addr);
-	PIT_wait_us(pit, 200);
-	send_startup_IPI_to_all_excluding_self(vector_addr);
-	PIT_wait_us(pit, 200);
-	*/
-	//TODO: stop every cpu till everyone has started
+	//wait for CPUs initialization
+	const uint64_t max_attempts = 30;
+	const uint64_t attempt_ms_wait = 1;
+	uint64_t attempts_count = 0;
+	uint64_t number_of_APs = number_of_logical_cores-1;//-BSP
+	while(attempts_count < max_attempts){
+		uint64_t initialized_APs_copy = atomic_load(&mp_gdata.initialized_APs);
+		if(initialized_APs_copy < number_of_APs)
+			PIT_wait_ms(pit, attempt_ms_wait);
+		else if(initialized_APs_copy > number_of_APs)
+			kpanic(GENERIC_ERROR);
+		else
+			return ERROR_MP_OK;
+	}
+
+	uint64_t initialized_APs_copy = atomic_load(&mp_gdata.initialized_APs);
+	if(initialized_APs_copy == number_of_APs)
+		return ERROR_MP_OK;
+	if(initialized_APs_copy > number_of_APs)
+		kpanic(GENERIC_ERROR);
+	if(initialized_APs_copy > 0)
+		return ERROR_MP_PARTIAL_STARTUP;
+	return ERROR_MP_STARTUP_FAILED;
 }

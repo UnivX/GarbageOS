@@ -192,8 +192,14 @@ uint64_t kmain(){
 	
 	printf("starting other CPUs\n");
 	PIT_wait_ms(&pit, 2000);
-	init_APs(&pit);
-	PIT_wait_ms(&pit, 100);
+	MPInitError mp_err = init_APs(&pit);
+	if(mp_err == ERROR_MP_OK){
+		printf("APs init OK(number of total CPUs: %u64", get_number_of_usable_logical_cores());
+	}else{
+		printf("APs initialization failed\n");
+		kpanic(GENERIC_ERROR);
+	}
+
 	
 	printf("sending interrupt %u64 to all cpus \n", 0x51);
 	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_INCLUDING_SELF, 0x51);
@@ -207,6 +213,7 @@ uint64_t kmain(){
 	printf("deallocating kernel vmem\n");
 	deallocate_kernel_virtual_memory(thandle);
 	printf("kernel vmem test done\n");
+	kio_flush();
 
 	PIT_wait_ms(&pit, 2000);
 

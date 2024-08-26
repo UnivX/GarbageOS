@@ -3,9 +3,10 @@
 #include <stdbool.h>
 
 /*COMPILATION OPTIONS*/
-#define DEBUG
-#define DO_TESTS
-#define PRINT_ALL_PAGE_FAULTS
+//#define DEBUG
+//#define DO_TESTS
+//#define PRINT_ALL_PAGE_FAULTS
+//#define PRINT_ALL_VMMCACHE_SHOOTDOWNS
 //#define PRINT_ALL_EOI
 //#define PRINT_ALL_SPURIOUS_INTERRUPT
 

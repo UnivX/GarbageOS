@@ -244,8 +244,8 @@ void vmmcache_shootdown(VMMCacheShootdownRange range, VMMCacheShootdownState* st
 void cache_shootdown_interrupt_handler(InterruptInfo info){
 	//InterruptState istate = disable_and_save_interrupts();
 	volatile VMMCacheShootdownQueue* queue = get_logical_core_vmmcache_shootdown_queue();
-	uint32_t cpuid = (uint32_t)get_cpu_id_from_apic_id(get_logical_core_lapic_id());
 #ifdef PRINT_ALL_VMMCACHE_SHOOTDOWNS
+	uint32_t cpuid = (uint32_t)get_cpu_id_from_apic_id(get_logical_core_lapic_id());
 	if(is_kio_initialized())
 		printf("emptying VMM cache shootdown queue with cpuid=%u32, queue count=%u64\n", cpuid, get_shootdown_q_count(queue));
 #endif
@@ -264,8 +264,8 @@ bool is_vmmcache_shootdown_subsystem_initialized(){
 }
 
 void vmmcache_shootdown_state_signal_queue_empty(VMMCacheShootdownState* state){
-	uint32_t cpuid = (uint32_t)get_cpu_id_from_apic_id(get_logical_core_lapic_id());
 #ifdef PRINT_ALL_VMMCACHE_SHOOTDOWNS
+	uint32_t cpuid = (uint32_t)get_cpu_id_from_apic_id(get_logical_core_lapic_id());
 	printf("signal shootdown queue empty (cpuid=%u32)\n", cpuid);
 #endif
 	atomic_fetch_add(&state->emptied_queues_count, 1);

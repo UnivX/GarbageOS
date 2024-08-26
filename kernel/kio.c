@@ -176,7 +176,7 @@ void print_uint64_dec(uint64_t n){
 }
 
 void unsync_print_uintmax_hex(uintmax_t number, int size_bytes){
-	KASSERT(size_bytes <= sizeof(uintmax_t))
+	KASSERT(size_bytes <= (int)sizeof(uintmax_t))
 	const int buffer_size = sizeof(uintmax_t)*2;
 	uint8_t buffer[buffer_size];
 	fill_digit_buffer(number, 16, buffer, buffer_size);
@@ -195,7 +195,7 @@ void unsync_print_uintmax_hex(uintmax_t number, int size_bytes){
 }
 
 void unsync_print_uintmax_hex_not_padded(uintmax_t number, int size_bytes){
-	KASSERT(size_bytes <= sizeof(uintmax_t))
+	KASSERT(size_bytes <= (int)sizeof(uintmax_t))
 	const int buffer_size = sizeof(uintmax_t)*2;
 	uint8_t buffer[buffer_size];
 	uint64_t written_digits_count = fill_digit_buffer(number, 16, buffer, buffer_size);
