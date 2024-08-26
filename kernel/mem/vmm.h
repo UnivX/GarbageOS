@@ -15,7 +15,6 @@ Virtual Memory Manager(VMM)
 #define MEMORY_MAP_PADDING PAGE_SIZE*4
 
 //#define FREEZE_ON_PAGE_FAULT
-//TODO: TLB shotdown
 
 typedef enum VirtualMemoryType{
 	VM_TYPE_FREE,
@@ -48,7 +47,7 @@ typedef struct PageFaultInfo{
 	bool page_not_present;
 } PageFaultInfo;
 
-//TODO:
+//TODO: is_kernel_virtual_memory
 bool is_kernel_virtual_memory(VirtualMemoryDescriptor descriptor);
 
 typedef struct VirtualMemoryManager{

@@ -147,5 +147,9 @@ void* kinit(){
 	initialize_vmmcache_shootdown_subsystem();
 	activate_this_cpu_vmmcache_shootdown();
 
+	//init the PIT timer
+	const uint64_t PIT_frequency = 1000;
+	init_kernel_data_PIT(PIT_frequency);
+
 	return get_vmem_addr(stack_mem)+get_vmem_size(stack_mem);//return the stack top
 }

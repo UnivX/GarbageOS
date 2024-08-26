@@ -57,6 +57,11 @@ void AP_entry_point(void* loaded_stack){
 	atomic_fetch_add(&mp_gdata.initialized_APs, 1);//increment
 	release_spinlock(&mp_gdata.lock);
 
+	PIT* pit = get_PIT_from_kernel_data();
+	PIT_wait_ms(pit, 3000);
+	printf("3 seconds have passed for cpu %u32\n", (uint32_t)cpuid);
+	kio_flush();
+
 	while(1){
 		halt();
 	}

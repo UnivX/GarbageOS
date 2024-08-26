@@ -14,13 +14,13 @@
 #include "interrupt/ioapic.h"
 #include "timer/pit.h"
 #include "mp/mp_initialization.h"
+#include "kernel_data.h"
 
 #include "test/kheap_test.h"
 //first usable intel CPU in history for this kernel : XEON Nocona (Jun 2004)
 //first usable AMD CPU in history for this kernel? : Opteron (Apr 2003).
 
 //TODO: replace print with printf
-//TODO: do tlb shutdown
 //TODO: fully implement memset, memcpy, memmove and memcmp
 //TODO: check APIC existence before usage
 //TODO: print PIC state
@@ -31,9 +31,6 @@
 //TODO: implement uefi bootloader for sweet acpi 2.0 tables
 //TODO: test acpi 2.0
 //TODO: clear all paging map levels when deallocating virtual memory
-//TODO: prevent nested page fault
-
-PIT pit;
 
 void general_protection_fault(InterruptInfo info){
 	printf("[GENERAL PROTECTION FAULT] error: %h64\n", info.error);
@@ -94,11 +91,9 @@ uint64_t kmain(){
 	install_default_interrupt_handler(interrupt_print);
 	install_interrupt_handler(0xd, general_protection_fault);
 
-	print("initializing PIT timer\n");
-	pit = create_PIT(0x41);
-	uint64_t pit_real_freq = initialize_PIT_timer(&pit, 1000);
 	print("PIT frequency: ");
-	print_uint64_dec(pit_real_freq);
+	PIT* pit = get_PIT_from_kernel_data();
+	print_uint64_dec(get_PIT_real_frequency(pit));
 	print("\n");
 
 	print_elf_info();
@@ -129,17 +124,18 @@ uint64_t kmain(){
 		print("\n");
 	}
 	print("\n");
-	debug_print_kernel_vmm();
 
-	
 	//return 0;
 	print("\nSleeping 2s\n");
 	kio_flush();
-	PIT_wait_ms(&pit, 2000);
-	
-	//for(int i = 0; i < 4000; i++)
-		//io_wait();
+	PIT_wait_ms(pit, 2000);
 
+	debug_print_kernel_vmm();
+
+	print("\nSleeping 2s\n");
+	kio_flush();
+	PIT_wait_ms(pit, 2000);
+	
 #ifdef DO_TESTS
 	print("\n-------------------STARTING TESTS-------------------\n");
 	print("starting stack overflower\n");
@@ -147,6 +143,7 @@ uint64_t kmain(){
 	asm volatile("int $0x40");
 	heap_stress_test();
 #endif
+
 	print("\n-------------------PRINTING MEMORY USAGE-------------------\n");
 
 	uint64_t kernel_bootloader_overhead = get_total_usable_RAM_size()-(get_number_of_free_frames()*PAGE_SIZE);
@@ -191,8 +188,8 @@ uint64_t kmain(){
 	printf( is_kheap_corrupted() ? "KERNEL HEAP CORRUPTED\n" : "KERNEL HEAP OK\n" );
 	
 	printf("starting other CPUs\n");
-	PIT_wait_ms(&pit, 2000);
-	MPInitError mp_err = init_APs(&pit);
+	PIT_wait_ms(pit, 2000);
+	MPInitError mp_err = init_APs(pit);
 	if(mp_err == ERROR_MP_OK){
 		printf("APs init OK(number of total CPUs: %u64)\n", get_number_of_usable_logical_cores());
 	}else{
@@ -206,8 +203,6 @@ uint64_t kmain(){
 	while(!is_IPI_sending_complete()) ;
 	kio_flush();
 
-	PIT_wait_ms(&pit, 2000);
-
 	printf("allocating kernel vmem\n");
 	VMemHandle thandle =allocate_kernel_virtual_memory(PAGE_SIZE*64, VM_TYPE_GENERAL_USE, 4*PAGE_SIZE, 4*PAGE_SIZE);
 	printf("deallocating kernel vmem\n");
@@ -215,18 +210,18 @@ uint64_t kmain(){
 	printf("kernel vmem test done\n");
 	kio_flush();
 
-	PIT_wait_ms(&pit, 2000);
-
+	/*
 	printf("freezing other cpus\n");
 	install_interrupt_handler(0xf0, freeze_interrupt);
 	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_EXCLUDING_SELF, 0xf0);
 	while(!is_IPI_sending_complete()) ;
-	PIT_wait_ms(&pit, 100);
+	PIT_wait_ms(pit, 100);
+	*/
 
-	PIT_wait_ms(&pit, 2000);
-	uint64_t ms = get_ms_from_tick_count(&pit, get_PIT_tick_count(&pit));
+	uint64_t ms = get_ms_from_tick_count(pit, get_PIT_tick_count(pit));
 	printf("seconds passed from pit init: %u64.%u64\n\n\n", ms/1000, ms%1000);
 
+	while(true) halt();
 	finalize_kio();
 	return 0;
 }

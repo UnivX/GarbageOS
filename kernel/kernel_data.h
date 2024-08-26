@@ -18,3 +18,6 @@ CPUID register_local_kernel_data_cpu();
 void set_local_kernel_data(CPUID cpu_id, LocalKernelData data);
 LocalKernelData get_local_kernel_data(CPUID cpu_id);
 CPUID get_cpu_id_from_apic_id(uint32_t apic_id);
+
+void init_kernel_data_PIT(uint64_t target_frequency_hz);
+PIT* get_PIT_from_kernel_data();

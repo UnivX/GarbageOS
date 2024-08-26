@@ -8,7 +8,6 @@
  * wich isn't syncronized beetwen cpu by the hardware
  * these function are primary called from the Virtual Memory Manager(VMM)
  */
-//TODO: test the shootdown
 
 #pragma once
 #include "../kdefs.h"

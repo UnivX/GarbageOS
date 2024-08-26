@@ -12,6 +12,7 @@
 #define KIO_CIRCULAR_BUFFER_SIZE 4096
 
 //TODO remove the hard spinlock and use a soft one
+//possible solution to reduce the locking: store the printed data in the circular buffer when in interrupt, unless kio_flush is called
 typedef struct KioState{
 	CircularBuffer char_buffer;
 	DisplayInterface display;

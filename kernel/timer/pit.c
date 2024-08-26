@@ -5,15 +5,6 @@
 
 static void PIT_interrupt_handler(InterruptInfo info);
 
-PIT create_PIT(uint8_t interrupt_vector){
-	PIT pit;
-	pit.channel_0_initialized = false;
-	pit.channel_2_initialized = false;
-	pit.interrupt_vector = interrupt_vector;
-	pit.tick_counter = 0;
-	return pit;
-}
-
 void enable_PIT_irq(PIT* pit){
 	//enable the irq in the IOApic
 	IOAPICInterruptRedirection int_redi;
@@ -60,10 +51,10 @@ uint8_t make_control_word(uint8_t select_counter, ReadWriteMode read_write, uint
 void set_mode0_on_channel0(PIT* pit, uint16_t counter_value){
 	//TODO: check if the pit is already counting(sync primitive)
 	uint8_t control_word = make_control_word(0, READ_WRITE_LSB_FIRST_MSB_THEN, 0);
-	InterruptState istate = disable_and_save_interrupts();
+	ACQUIRE_SPINLOCK_HARD(&pit->hardware_lock);
 	outb(PIT_MODE_COMMAND_PORT, control_word);
 	outw(PIT_CHANNEL_0_DATA_PORT, counter_value);
-	restore_interrupt_state(istate);
+	RELEASE_SPINLOCK_HARD(&pit->hardware_lock);
 }
 
 void set_mode2_on_channel0(PIT* pit, uint16_t counter_value){
@@ -72,11 +63,11 @@ void set_mode2_on_channel0(PIT* pit, uint16_t counter_value){
 	uint8_t counter_value_low = counter_value;
 	uint8_t counter_value_high = counter_value >> 8;
 
-	InterruptState istate = disable_and_save_interrupts();
+	ACQUIRE_SPINLOCK_HARD(&pit->hardware_lock);
 	outb(PIT_MODE_COMMAND_PORT, control_word);
 	outb(PIT_CHANNEL_0_DATA_PORT, counter_value_low);
 	outb(PIT_CHANNEL_0_DATA_PORT, counter_value_high);
-	restore_interrupt_state(istate);
+	RELEASE_SPINLOCK_HARD(&pit->hardware_lock);
 }
 
 //approximate the counter value from the frequency
@@ -100,7 +91,15 @@ static uint64_t get_frequency_hz_from_counter_value(uint16_t counter_value){
 	return freq;
 }
 
-uint64_t initialize_PIT_timer(PIT* pit, uint64_t target_frequency_hz){
+uint64_t initialize_PIT_timer(PIT* pit, uint64_t target_frequency_hz, uint8_t interrupt_vector){
+	//init data
+	pit->channel_0_initialized = false;
+	pit->channel_2_initialized = false;
+	pit->interrupt_vector = interrupt_vector;
+	pit->interrupt_receiver_apic_id = 0;
+	atomic_store(&pit->tick_counter, 0);
+	init_spinlock(&pit->hardware_lock);
+
 	//set interrupt handler
 	install_interrupt_handler(pit->interrupt_vector, PIT_interrupt_handler);
 	set_interrupt_handler_extra_data(pit->interrupt_vector, (void*)pit);
@@ -109,16 +108,20 @@ uint64_t initialize_PIT_timer(PIT* pit, uint64_t target_frequency_hz){
 	pit->interrupt_frequency = get_frequency_hz_from_counter_value(counter_value);//get the real frequency
 
 	set_mode2_on_channel0(pit, counter_value);
+
+	pit->interrupt_receiver_apic_id = get_logical_core_lapic_id();
 	enable_PIT_irq(pit);
 
 	return pit->interrupt_frequency;
 }
 
+uint64_t get_PIT_real_frequency(PIT* pit){
+	return pit->interrupt_frequency;
+}
+
 inline uint64_t get_PIT_tick_count(PIT* pit){
 	uint64_t ticks = 0;
-	InterruptState istate = disable_and_save_interrupts();
-	ticks = pit->tick_counter;
-	restore_interrupt_state(istate);
+	ticks = atomic_load(&pit->tick_counter);
 	return ticks;
 }
 
@@ -149,9 +152,12 @@ void PIT_wait_us(PIT* pit, uint64_t ms){
 }
 
 void PIT_interrupt_handler(InterruptInfo info){
-	InterruptState istate = disable_and_save_interrupts();
 	PIT* pit = (PIT*)info.extra_data;
-	pit->tick_counter++;
-	restore_interrupt_state(istate);
+	if(get_logical_core_lapic_id() != pit->interrupt_receiver_apic_id)
+		return;
+	atomic_fetch_add(&pit->tick_counter, 1);
+	//TODO: check if we need to send the interrupt to every CPU or only some CPUs
+	//send the interrupt to the others processor if they need to be waked up by the halt()
+	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_EXCLUDING_SELF, pit->interrupt_vector);
 	return;
 }

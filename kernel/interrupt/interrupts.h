@@ -6,6 +6,7 @@
 //these vector numbers are reserved for the pic use:
 // 32-48 / 0x20-0x30
 #define VMMCACHE_SHOOTDOWN_VECTOR 0x31
+#define PIT_VECTOR 0x41
 
 //these vector numbers are reserved for apic use
 #define APIC_ERROR_VECTOR 0xf0
