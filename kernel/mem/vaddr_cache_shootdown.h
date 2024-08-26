@@ -14,33 +14,25 @@
 #include "../kdefs.h"
 #include "../hal.h"
 #include "../util/sync_types.h"
-#define PRINT_ALL_VMMCACHE_SHOOTDOWNS
+//#define PRINT_ALL_VMMCACHE_SHOOTDOWNS
 
-//TODO: make it fr
-//this structure is used for notifying the processor that has executed the 
+//This structure is used for notifying the processor that has executed the 
 //emptying of all cpus' queue when the shootdown has finished
+//internaly the pointer to the state is a value of the elements pushed to the pending shootdowns queue.
+//When the element is popped from the queue if the pointer is not NULL the state will be updated
 typedef struct VMMCacheShootdownState{
-	uint64_t queues_to_wait_count;
-} ShootdownQueueEmptyCounter;
+	unsigned int queues_to_wait_count;
+	atomic_uint emptied_queues_count;
+} VMMCacheShootdownState;
+
+void wait_for_vmmcache_shootdown_completition(VMMCacheShootdownState *state);
 
 typedef struct VMMCacheShootdownRange{
 	void* addr_start;
 	uint64_t size_in_pages;
 } VMMCacheShootdownRange;
 
-typedef struct VMMCacheShootdownQueue{
-	struct CSQNode{
-		VMMCacheShootdownRange range;
-		struct CSQNode* next;
-	};
-	struct CSQNode *q_head;
-	struct CSQNode *q_tail;
-	uint64_t node_count;
-	//the queue cannot be deactivated
-	//this makes the concurrency management easier
-	bool active;
-	spinlock queue_lock;
-} VMMCacheShootdownQueue;
+#define NULL_VMMCACHE_SHOOTDOWN_RANGE {NULL, 0}
 
 void activate_this_cpu_vmmcache_shootdown();
 void initialize_vmmcache_shootdown_subsystem();
@@ -52,13 +44,22 @@ void enqueue_vmmcache_shootdown_range(VMMCacheShootdownRange range);
 //empty all the queues(one per cpu) of pending shootdowns of 
 //virtual addresses translation cache
 //this function empty also the queue of this CPU
-void empty_all_vmmcache_shootdown_queues();
+//state is used to know the state of the shootdown, it's a pointer to the struct allocated by the caller.
+//state may be null if you do not need it
+//DO NOT DEALLOCATE STATE BEFORE CALLING wait_for_vmmcache_shootdown_completition
+void empty_all_vmmcache_shootdown_queues(VMMCacheShootdownState* state);
 //empty all the queues(one per cpu), except the caller queue, of pending shootdowns of 
 //virtual addresses translation cache
 //this function empty also the queue of this CPU
-void empty_other_cpus_vmmcache_shootdown_queues();
+//state is used to know the state of the shootdown, it's a pointer to the struct allocated by the caller.
+//state may be null if you do not need it
+//DO NOT DEALLOCATE STATE BEFORE CALLING wait_for_vmmcache_shootdown_completition
+void empty_other_cpus_vmmcache_shootdown_queues(VMMCacheShootdownState* state);
 
 //shootdown of the virtual addresses translation caches of the range
-void vmmcache_shootdown(VMMCacheShootdownRange range);
+//state is used to know the state of the shootdown, it's a pointer to the struct allocated by the caller.
+//state may be null if you do not need it
+//DO NOT DEALLOCATE STATE BEFORE CALLING wait_for_vmmcache_shootdown_completition
+void vmmcache_shootdown(VMMCacheShootdownRange range, VMMCacheShootdownState* state);
 
 bool is_vmmcache_shootdown_subsystem_initialized();

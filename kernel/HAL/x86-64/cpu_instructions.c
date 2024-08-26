@@ -147,3 +147,7 @@ void get_cpu_frequencies(CPUFrequencies* out){
 	__get_cpuid(0x15, &eax, &ebx, &ecx, &edx);
 	out->core_crystal_clock_freq = ecx;
 }
+
+void pause(){
+	__builtin_ia32_pause();
+}

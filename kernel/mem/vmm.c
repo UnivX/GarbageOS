@@ -130,10 +130,13 @@ void load_identity_map_pages(void* paddr, uint64_t size, VMemHandle handle){
 		paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 	}
 	VMMCacheShootdownRange shootdown_range;
+	VMMCacheShootdownState state;
 	shootdown_range.addr_start = paddr;
 	shootdown_range.size_in_pages = size/PAGE_SIZE;
-	if(is_vmmcache_shootdown_subsystem_initialized())
-		vmmcache_shootdown(shootdown_range);
+	if(is_vmmcache_shootdown_subsystem_initialized()){
+		vmmcache_shootdown(shootdown_range, &state);
+		wait_for_vmmcache_shootdown_completition(&state);
+	}
 }
 
 VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
@@ -175,11 +178,13 @@ VMemHandle memory_map(void* paddr, uint64_t size, uint16_t page_flags){
 	}
 
 	VMMCacheShootdownRange shootdown_range;
+	VMMCacheShootdownState state;
 	shootdown_range.addr_start = vaddr;
 	shootdown_range.size_in_pages = no_padding_size/PAGE_SIZE;
-	if(is_vmmcache_shootdown_subsystem_initialized())
-		vmmcache_shootdown(shootdown_range);
-
+	if(is_vmmcache_shootdown_subsystem_initialized()){
+		vmmcache_shootdown(shootdown_range, &state);
+		wait_for_vmmcache_shootdown_completition(&state);
+	}
 	return (VMemHandle)cutted_descriptor;
 }
 
@@ -215,11 +220,14 @@ VMemHandle copy_memory_mapping_from_paging_structure(void* src_paging_structure,
 			delete_page_translation_cache((void*)translation_vaddr);
 		}
 
+		VMMCacheShootdownState state;
 		VMMCacheShootdownRange shootdown_range;
 		shootdown_range.addr_start = vaddr;
 		shootdown_range.size_in_pages = size/PAGE_SIZE;
-		if(is_vmmcache_shootdown_subsystem_initialized())
-			vmmcache_shootdown(shootdown_range);
+		if(is_vmmcache_shootdown_subsystem_initialized()){
+			vmmcache_shootdown(shootdown_range, &state);
+			wait_for_vmmcache_shootdown_completition(&state);
+		}
 
 		REACQUIRE_SPINLOCK_HARD(&kernel_vmm.lock);
 		result = (VMemHandle)cutted_descriptor;
@@ -263,11 +271,14 @@ VMemHandle allocate_kernel_virtual_memory(uint64_t size, VirtualMemoryType type,
 		vaddr += PAGE_SIZE;
 	}
 
+	VMMCacheShootdownState state;
 	VMMCacheShootdownRange shootdown_range;
 	shootdown_range.addr_start = vaddr;
 	shootdown_range.size_in_pages = no_padding_size/PAGE_SIZE;
-	if(is_vmmcache_shootdown_subsystem_initialized())
-		vmmcache_shootdown(shootdown_range);
+	if(is_vmmcache_shootdown_subsystem_initialized()){
+		vmmcache_shootdown(shootdown_range, &state);
+		wait_for_vmmcache_shootdown_completition(&state);
+	}
 
 	return (VMemHandle)cutted_descriptor;
 }
@@ -295,11 +306,14 @@ bool deallocate_kernel_virtual_memory(VMemHandle handle){
 			invalidate_paging_mapping(kernel_vmm.kernel_paging_structure, vaddr);
 			vaddr += PAGE_SIZE;
 		}
+		VMMCacheShootdownState state;
 		VMMCacheShootdownRange shootdown_range;
 		shootdown_range.addr_start = vaddr;
 		shootdown_range.size_in_pages = get_no_padding_size(desc) /PAGE_SIZE;
-		if(is_vmmcache_shootdown_subsystem_initialized())
-			vmmcache_shootdown(shootdown_range);
+		if(is_vmmcache_shootdown_subsystem_initialized()){
+			vmmcache_shootdown(shootdown_range, &state);
+			wait_for_vmmcache_shootdown_completition(&state);
+		}
 	}
 	
 	//set the range as a free one
@@ -377,11 +391,14 @@ bool _try_expand_vmem_top(VMemHandle handle, uint64_t size, bool use_spinlock){
 			paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 			vaddr += PAGE_SIZE;
 		}
+		VMMCacheShootdownState state;
 		VMMCacheShootdownRange shootdown_range;
 		shootdown_range.addr_start = vaddr;
 		shootdown_range.size_in_pages = size/PAGE_SIZE;
-		if(is_vmmcache_shootdown_subsystem_initialized())
-			vmmcache_shootdown(shootdown_range);
+		if(is_vmmcache_shootdown_subsystem_initialized()){
+			vmmcache_shootdown(shootdown_range, &state);
+			wait_for_vmmcache_shootdown_completition(&state);
+		}
 	}
 
 	return !not_expandable;
@@ -426,11 +443,15 @@ bool _try_expand_vmem_bottom(VMemHandle handle, uint64_t size, bool use_spinlock
 			paging_map(kernel_vmm.kernel_paging_structure, vaddr, alloc_frame(), PAGE_PRESENT | PAGE_WRITABLE);
 			vaddr += PAGE_SIZE;
 		}
+
+		VMMCacheShootdownState state;
 		VMMCacheShootdownRange shootdown_range;
 		shootdown_range.addr_start = vaddr;
 		shootdown_range.size_in_pages = size/PAGE_SIZE;
-		if(is_vmmcache_shootdown_subsystem_initialized())
-			vmmcache_shootdown(shootdown_range);
+		if(is_vmmcache_shootdown_subsystem_initialized()){
+			vmmcache_shootdown(shootdown_range, &state);
+			wait_for_vmmcache_shootdown_completition(&state);
+		}
 	}
 	return !not_expandable;
 }
@@ -708,11 +729,14 @@ bool page_fault_check_identity_map_load(PageFaultInfo pf_info){
 		for(; to_map < last_page; to_map+=PAGE_SIZE){
 			paging_map(kernel_vmm.kernel_paging_structure, to_map, to_map, PAGE_WRITABLE | PAGE_PRESENT);
 		}
+		VMMCacheShootdownState state;
 		VMMCacheShootdownRange shootdown_range;
 		shootdown_range.addr_start = to_map;
 		shootdown_range.size_in_pages = (last_page-to_map)/PAGE_SIZE;
-		if(is_vmmcache_shootdown_subsystem_initialized())
-			vmmcache_shootdown(shootdown_range);
+		if(is_vmmcache_shootdown_subsystem_initialized()){
+			vmmcache_shootdown(shootdown_range, &state);
+			wait_for_vmmcache_shootdown_completition(&state);
+		}
 		
 		return true;
 	}

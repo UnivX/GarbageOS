@@ -3,11 +3,43 @@
 #include "../interrupt/apic.h"
 #include "heap.h"
 
+typedef struct _VMMCacheShootdownRange{
+	VMMCacheShootdownRange range;
+	//this pointer it's used to notifying the end of one or more shootdowns
+	//we use it like a checkpoint in the queue
+	//go see the structure definition for a nice comment about it
+	VMMCacheShootdownState *state;
+} _VMMCacheShootdownRange;
+
+struct CSQNode{
+	_VMMCacheShootdownRange range;
+	struct CSQNode* next;
+};
+
+typedef struct VMMCacheShootdownQueue{
+	struct CSQNode *q_head;
+	struct CSQNode *q_tail;
+	uint64_t node_count;
+	//the queue cannot be deactivated
+	//this makes the concurrency management easier
+	bool active;
+	spinlock queue_lock;
+} VMMCacheShootdownQueue;
+
 struct VMMCacheShootdownSystem{
 	volatile VMMCacheShootdownQueue* queue_array;
 	uint64_t queues_count;
 };
+
 static struct VMMCacheShootdownSystem cache_shootdown_sys = {NULL, 0};
+
+void vmmcache_shootdown_state_signal_queue_empty(VMMCacheShootdownState* state);
+void init_vmmcache_shootdown_state(VMMCacheShootdownState* state);
+
+bool is_vmmcache_shootdown_range_null(VMMCacheShootdownRange range){
+	VMMCacheShootdownRange null_range = NULL_VMMCACHE_SHOOTDOWN_RANGE;
+	return null_range.addr_start == range.addr_start && null_range.size_in_pages == range.size_in_pages;
+}
 
 uint64_t get_logical_core_vmmcache_shootdown_queue_index(){
 	KASSERT(cache_shootdown_sys.queue_array != NULL);
@@ -26,7 +58,7 @@ volatile struct VMMCacheShootdownQueue* get_logical_core_vmmcache_shootdown_queu
 
 void cache_shootdown_interrupt_handler(InterruptInfo info);
 
-struct CSQNode* create_CSQNode(VMMCacheShootdownRange range){
+struct CSQNode* create_CSQNode(_VMMCacheShootdownRange range){
 		struct CSQNode* new_node = (struct CSQNode*)kmalloc(sizeof(struct CSQNode));
 		new_node->next = NULL;
 		new_node->range = range;
@@ -48,7 +80,7 @@ inline bool is_shootdown_q_empty(volatile VMMCacheShootdownQueue* q){
 	return result;
 }
 
-void push_to_shootdown_q(volatile VMMCacheShootdownQueue* q, VMMCacheShootdownRange range){
+void push_to_shootdown_q(volatile VMMCacheShootdownQueue* q, _VMMCacheShootdownRange range){
 	InterruptState istate;
 	acquire_spinlock_hard(&q->queue_lock, &istate);
 	if(unsync_is_shootdown_q_empty(q)){
@@ -67,8 +99,8 @@ void push_to_shootdown_q(volatile VMMCacheShootdownQueue* q, VMMCacheShootdownRa
 	release_spinlock_hard(&q->queue_lock, &istate);
 }
 
-VMMCacheShootdownRange pop_from_shootdown_q(volatile VMMCacheShootdownQueue* q){
-	VMMCacheShootdownRange range = {NULL,0};
+_VMMCacheShootdownRange pop_from_shootdown_q(volatile VMMCacheShootdownQueue* q){
+	_VMMCacheShootdownRange range = {NULL_VMMCACHE_SHOOTDOWN_RANGE, NULL};
 
 	InterruptState istate;
 	acquire_spinlock_hard(&q->queue_lock, &istate);
@@ -144,9 +176,12 @@ void activate_this_cpu_vmmcache_shootdown(){
 	delete_all_translation_cache();
 }
 
-void enqueue_vmmcache_shootdown_range(VMMCacheShootdownRange range){
+void _enqueue_vmmcache_shootdown_range(VMMCacheShootdownRange range, VMMCacheShootdownState* state){
 	//add the range to the queues and then send an Inter Processor Interrupt(IPI)
 	KASSERT(cache_shootdown_sys.queue_array != NULL);
+	_VMMCacheShootdownRange range_to_push;
+	range_to_push.range = range;
+	range_to_push.state = state;
 	//get the index of the queue for this logical core
 	uint64_t self_queue_index = get_logical_core_vmmcache_shootdown_queue_index();
 	for(uint64_t i = 0; i < cache_shootdown_sys.queues_count; i++){
@@ -156,21 +191,52 @@ void enqueue_vmmcache_shootdown_range(VMMCacheShootdownRange range){
 		//we have a race condition where we may lose some shootdowns
 		//this is taken care of in activate_this_cpu_vmmcache_shootdown
 		if(is_shootdown_q_active(q) && i != self_queue_index)
-			push_to_shootdown_q(q, range);
+			push_to_shootdown_q(q, range_to_push);
 	}
 }
 
-void empty_all_vmmcache_shootdown_queues(){
+void enqueue_vmmcache_shootdown_range(VMMCacheShootdownRange range){
+	_enqueue_vmmcache_shootdown_range(range, NULL);
+}
+
+void empty_all_vmmcache_shootdown_queues(VMMCacheShootdownState* state){
+	if(state != NULL){
+		init_vmmcache_shootdown_state(state);
+		//enqueue a null range with a state
+		//the null range will be ignored
+		//but when the range will be processed the state internal variable will be
+		//incremented. Because the null range with the state is pushed after all the other
+		//shootdown ranges we are sure that when the state is set as completed all the previous range
+		//had been executed
+		VMMCacheShootdownRange null_range = NULL_VMMCACHE_SHOOTDOWN_RANGE;
+		_enqueue_vmmcache_shootdown_range(null_range, state);
+	}
 	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_INCLUDING_SELF, VMMCACHE_SHOOTDOWN_VECTOR);
 }
 
-void empty_other_cpus_vmmcache_shootdown_queues(){
+void empty_other_cpus_vmmcache_shootdown_queues(VMMCacheShootdownState* state){
+	if(state != NULL){
+		init_vmmcache_shootdown_state(state);
+		//enqueue a null range with a state
+		//the null range will be ignored
+		//but when the range will be processed the state internal variable will be
+		//incremented. Because the null range with the state is pushed after all the other
+		//shootdown ranges we are sure that when the state is set as completed all the previous range
+		//had been executed
+		VMMCacheShootdownRange null_range = NULL_VMMCACHE_SHOOTDOWN_RANGE;
+		_enqueue_vmmcache_shootdown_range(null_range, state);
+	}
 	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_EXCLUDING_SELF, VMMCACHE_SHOOTDOWN_VECTOR);
 }
 
-void vmmcache_shootdown(VMMCacheShootdownRange range){
-	enqueue_vmmcache_shootdown_range(range);
-	empty_other_cpus_vmmcache_shootdown_queues();
+void vmmcache_shootdown(VMMCacheShootdownRange range, VMMCacheShootdownState* state){
+	if(state != NULL){
+		init_vmmcache_shootdown_state(state);
+	}
+	//we pass the state to the enqueue function and not to the empty function.
+	//we do not pass it to the empty function to not push another element to the queue
+	_enqueue_vmmcache_shootdown_range(range, state);
+	empty_other_cpus_vmmcache_shootdown_queues(NULL);
 }
 
 void cache_shootdown_interrupt_handler(InterruptInfo info){
@@ -182,12 +248,41 @@ void cache_shootdown_interrupt_handler(InterruptInfo info){
 		printf("emptying VMM cache shootdown queue with cpuid=%u32, queue count=%u64\n", cpuid, get_shootdown_q_count(queue));
 #endif
 	while(!is_shootdown_q_empty(queue)){
-		VMMCacheShootdownRange range = pop_from_shootdown_q(queue);
-		delete_vmmcache_range(range);
+		_VMMCacheShootdownRange range = pop_from_shootdown_q(queue);
+		if(is_vmmcache_shootdown_range_null(range.range))
+			delete_vmmcache_range(range.range);
+		if(range.state != NULL)
+			vmmcache_shootdown_state_signal_queue_empty(range.state);
 	}
 	//restore_interrupt_state(istate);
 }
 
 bool is_vmmcache_shootdown_subsystem_initialized(){
 	return cache_shootdown_sys.queue_array != NULL;
+}
+
+void vmmcache_shootdown_state_signal_queue_empty(VMMCacheShootdownState* state){
+	atomic_fetch_add(&state->emptied_queues_count, 1);
+}
+
+
+void init_vmmcache_shootdown_state(VMMCacheShootdownState* state){
+	KASSERT(cache_shootdown_sys.queue_array != NULL);
+	atomic_store(&state->emptied_queues_count, 0);
+
+	//TODO: cache this value somehow
+	unsigned int count = 0;
+	uint64_t self_queue_index = get_logical_core_vmmcache_shootdown_queue_index();
+	for(uint64_t i = 0; i < cache_shootdown_sys.queues_count; i++){
+		if(i == self_queue_index) continue;
+		if(!cache_shootdown_sys.queue_array[i].active) continue;
+		count++;
+	}
+	state->queues_to_wait_count = count;
+}
+
+void wait_for_vmmcache_shootdown_completition(VMMCacheShootdownState* state){
+	while(atomic_load(&state->emptied_queues_count) < state->queues_to_wait_count){
+		pause();
+	}
 }

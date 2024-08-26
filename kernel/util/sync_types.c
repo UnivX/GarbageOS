@@ -6,7 +6,7 @@ inline void init_spinlock(volatile spinlock* s){
 
 inline void acquire_spinlock(volatile spinlock* s){
 	while(atomic_flag_test_and_set_explicit(s, memory_order_acquire))
-        __builtin_ia32_pause();
+		pause();
 	return;
 }
 
@@ -19,7 +19,7 @@ void acquire_spinlock_hard(volatile spinlock* s, InterruptState* istate){
 	*istate = disable_and_save_interrupts();
 	while(atomic_flag_test_and_set_explicit(s, memory_order_acquire)){
 		restore_interrupt_state(*istate);
-        __builtin_ia32_pause();
+		pause();
 		*istate = disable_and_save_interrupts();
 	}
 	return;
