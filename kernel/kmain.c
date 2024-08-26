@@ -194,7 +194,7 @@ uint64_t kmain(){
 	PIT_wait_ms(&pit, 2000);
 	MPInitError mp_err = init_APs(&pit);
 	if(mp_err == ERROR_MP_OK){
-		printf("APs init OK(number of total CPUs: %u64", get_number_of_usable_logical_cores());
+		printf("APs init OK(number of total CPUs: %u64)\n", get_number_of_usable_logical_cores());
 	}else{
 		printf("APs initialization failed\n");
 		kpanic(GENERIC_ERROR);
