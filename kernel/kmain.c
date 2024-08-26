@@ -202,6 +202,14 @@ uint64_t kmain(){
 
 	PIT_wait_ms(&pit, 2000);
 
+	printf("allocating kernel vmem\n");
+	VMemHandle thandle =allocate_kernel_virtual_memory(PAGE_SIZE*64, VM_TYPE_GENERAL_USE, 4*PAGE_SIZE, 4*PAGE_SIZE);
+	printf("deallocating kernel vmem\n");
+	deallocate_kernel_virtual_memory(thandle);
+	printf("kernel vmem test done\n");
+
+	PIT_wait_ms(&pit, 2000);
+
 	printf("freezing other cpus\n");
 	install_interrupt_handler(0xf0, freeze_interrupt);
 	send_IPI_by_destination_shorthand(APIC_DESTSH_ALL_EXCLUDING_SELF, 0xf0);

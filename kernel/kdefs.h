@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 /*COMPILATION OPTIONS*/
+#define DEBUG
 #define DO_TESTS
 #define PRINT_ALL_PAGE_FAULTS
 //#define PRINT_ALL_EOI

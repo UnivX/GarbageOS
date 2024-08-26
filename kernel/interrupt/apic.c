@@ -316,7 +316,7 @@ void wait_and_write_interrupt_command_register(uint64_t ICR){
 void send_IPI_by_destination_shorthand(APICDestinationShorthand dest_sh, uint8_t interrupt_vector){
 	KASSERT(dest_sh != APIC_DESTSH_NO_SH);
 	KASSERT(lapic_gdata.register_space_mapping != NULL);
-	uint64_t ICR = make_interrupt_command(0, dest_sh, 0, 1, 0, APIC_DEL_MODE_FIXED, interrupt_vector);
+	uint64_t ICR = make_interrupt_command(0xff, dest_sh, 0, 1, 0, APIC_DEL_MODE_FIXED, interrupt_vector);
 	wait_and_write_interrupt_command_register(ICR);
 }
 

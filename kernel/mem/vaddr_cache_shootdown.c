@@ -154,6 +154,8 @@ void delete_vmmcache_range(VMMCacheShootdownRange range){
 void initialize_cache_shootdown_queue(volatile VMMCacheShootdownQueue* queue){
 	queue->q_head = NULL;
 	queue->q_tail = NULL;
+	queue->active = false;
+	queue->node_count = 0;
 	init_spinlock(&queue->queue_lock);
 }
 
@@ -262,6 +264,10 @@ bool is_vmmcache_shootdown_subsystem_initialized(){
 }
 
 void vmmcache_shootdown_state_signal_queue_empty(VMMCacheShootdownState* state){
+	uint32_t cpuid = (uint32_t)get_cpu_id_from_apic_id(get_logical_core_lapic_id());
+#ifdef PRINT_ALL_VMMCACHE_SHOOTDOWNS
+	printf("signal shootdown queue empty (cpuid=%u32)\n", cpuid);
+#endif
 	atomic_fetch_add(&state->emptied_queues_count, 1);
 }
 
@@ -279,9 +285,15 @@ void init_vmmcache_shootdown_state(VMMCacheShootdownState* state){
 		count++;
 	}
 	state->queues_to_wait_count = count;
+#ifdef PRINT_ALL_VMMCACHE_SHOOTDOWNS
+	printf("init_vmmcache_shootdown_state: queues_to_wait_count=%u64\n", (uint64_t)state->queues_to_wait_count);
+#endif
 }
 
 void wait_for_vmmcache_shootdown_completition(VMMCacheShootdownState* state){
+#ifdef PRINT_ALL_VMMCACHE_SHOOTDOWNS
+	printf("wait_for_vmmcache_shootdown_completition\n", (uint64_t)state->queues_to_wait_count);
+#endif
 	while(atomic_load(&state->emptied_queues_count) < state->queues_to_wait_count){
 		pause();
 	}

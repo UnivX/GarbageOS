@@ -125,6 +125,9 @@ void* alloc_frame(){
 	RELEASE_SPINLOCK_HARD(&frame_allocator.lock);
 	if(new_frame == NULL)
 		kpanic(FRAME_ALLOCATOR_ERROR);
+#ifdef FILL_ALL_FRAMES
+	memset(new_frame, FILL_FRAME_BYTE, PAGE_SIZE);
+#endif
 	return new_frame;
 }
 

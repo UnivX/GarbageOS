@@ -14,7 +14,7 @@
 #include "../kdefs.h"
 #include "../hal.h"
 #include "../util/sync_types.h"
-//#define PRINT_ALL_VMMCACHE_SHOOTDOWNS
+#define PRINT_ALL_VMMCACHE_SHOOTDOWNS
 
 //This structure is used for notifying the processor that has executed the 
 //emptying of all cpus' queue when the shootdown has finished

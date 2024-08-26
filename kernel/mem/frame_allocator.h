@@ -3,6 +3,11 @@
 #include "../hal.h"
 #include "../util/sync_types.h"
 
+#define FILL_FRAME_BYTE 0xcc
+#ifdef DEBUG
+#define FILL_ALL_FRAMES
+#endif
+
 /* a stack that requires a contiguous physical ram space
  * used to take care of freed frames
  */
